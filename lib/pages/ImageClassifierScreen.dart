@@ -52,7 +52,13 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Image Classifier')),
+      // appBar: AppBar(
+      //   title: Text('Image Classifier'),
+      //   leading: IconButton(
+      //     icon: Icon(Icons.arrow_back),
+      //     onPressed: () => Navigator.of(context).pop(),
+      //   ),
+      // ),
       body: Column(
         children: [
           Expanded(

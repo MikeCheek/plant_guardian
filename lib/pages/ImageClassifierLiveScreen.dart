@@ -94,7 +94,7 @@ class _ImageClassifierLiveScreenState extends State<ImageClassifierLiveScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Live Image Classifier')),
+      // appBar: AppBar(title: Text('Live Image Classifier')),
       body: Column(
         children: [
           Expanded(
