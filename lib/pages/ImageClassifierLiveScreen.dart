@@ -41,13 +41,22 @@ class _ImageClassifierLiveScreenState extends State<ImageClassifierLiveScreen> {
 
   Future<void> _processCameraImage(CameraImage image) async {
     _frameCount++;
-    if (_isPaused || _frameCount % 25 != 0 || _isProcessing)
+    if (_isPaused || _frameCount % 25 != 0 || _isProcessing) {
       return; // Only every 25th frame
+    }
     _isProcessing = true;
     try {
-      final result = await TFLiteHelper.classifyCameraImage(image);
+      final (result, score) = await TFLiteHelper.classifyCameraImage(image);
+      if (score < 0.5) {
+        // Skip low confidence predictions
+        _isProcessing = false;
+        return;
+      }
       setState(() {
-        _predictions.insert(0, result);
+        _predictions.insert(
+          0,
+          '$result (${(score * 100).toStringAsFixed(2)}%)',
+        );
         if (_predictions.length > 10) {
           _predictions = _predictions.sublist(0, 10);
         }
@@ -91,6 +100,17 @@ class _ImageClassifierLiveScreenState extends State<ImageClassifierLiveScreen> {
     });
   }
 
+  void _toggleFlash() {
+    if (_cameraController != null) {
+      _cameraController!.setFlashMode(
+        _cameraController!.value.flashMode == FlashMode.off
+            ? FlashMode.torch
+            : FlashMode.off,
+      );
+      setState(() {});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -110,10 +130,25 @@ class _ImageClassifierLiveScreenState extends State<ImageClassifierLiveScreen> {
                   right: 24,
                   child: FloatingActionButton(
                     onPressed: _togglePause,
-                    child: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
                     tooltip: _isPaused
                         ? 'Resume Predictions'
                         : 'Pause Predictions',
+                    child: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
+                  ),
+                ),
+                Positioned(
+                  bottom: 24,
+                  left: 24,
+                  child: FloatingActionButton(
+                    onPressed: _toggleFlash,
+                    tooltip: 'Toggle Flash',
+                    child: Icon(
+                      _cameraController != null &&
+                              _cameraController!.value.flashMode ==
+                                  FlashMode.torch
+                          ? Icons.flash_on
+                          : Icons.flash_off,
+                    ),
                   ),
                 ),
               ],

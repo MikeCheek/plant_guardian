@@ -58,7 +58,7 @@ class TFLiteHelper {
     }
   }
 
-  static Future<String> classifyImage(File imageFile) async {
+  static Future<(String, double)> classifyImage(File imageFile) async {
     if (!_isInitialized) throw Exception("Model not initialized");
 
     preprocessImage(imageFile);
@@ -78,7 +78,7 @@ class TFLiteHelper {
       }
     }
 
-    return _labels[maxIndex];
+    return (_labels[maxIndex], maxScore);
   }
 
   static void preprocessCameraImage(
@@ -116,7 +116,7 @@ class TFLiteHelper {
     }
   }
 
-  static Future<String> classifyCameraImage(CameraImage image) async {
+  static Future<(String, double)> classifyCameraImage(CameraImage image) async {
     if (!_isInitialized) throw Exception("Model not initialized");
 
     preprocessCameraImage(image);
@@ -134,6 +134,6 @@ class TFLiteHelper {
       }
     }
 
-    return _labels[maxIndex];
+    return (_labels[maxIndex], maxScore);
   }
 }

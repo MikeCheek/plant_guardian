@@ -16,7 +16,7 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
   String _result = '';
   bool _isLoading = false;
 
-  Future<String> _classifyImage(File image) async {
+  Future<(String, double)> _classifyImage(File image) async {
     try {
       return await TFLiteHelper.classifyImage(image);
     } catch (e) {
@@ -36,9 +36,9 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
     });
 
     try {
-      final result = await _classifyImage(_image!);
+      final (result, score) = await _classifyImage(_image!);
       setState(() {
-        _result = result;
+        _result = '$result (${(score * 100).toStringAsFixed(2)}%)';
         _isLoading = false;
       });
     } catch (e) {
