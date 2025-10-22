@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:plant_guardian/pages/ImageClassifierLiveScreen.dart';
 import 'package:plant_guardian/pages/ImageClassifierScreen.dart';
+import 'package:plant_guardian/pages/ChatScreen.dart';
 
 import 'TFLiteHelper.dart';
 import 'theme.dart';
@@ -71,6 +72,14 @@ class _MyAppState extends State<MyApp> {
           showDrawer: false,
           showBack: true,
           child: ImageClassifierScreen(),
+        ),
+        '/chat': (context) => MainLayout(
+          title: 'Chat with Plant Guardian',
+          isDarkMode: _isDarkMode,
+          toggleTheme: _toggleTheme,
+          showDrawer: false,
+          showBack: true,
+          child: const ChatScreen(),
         ),
       },
     );
@@ -157,6 +166,14 @@ class AppDrawer extends StatelessWidget {
             onTap: () {
               Navigator.pop(context);
               Navigator.pushNamed(context, '/third');
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.chat),
+            title: const Text('Chat with Plant Guardian'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, '/chat');
             },
           ),
         ],
