@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:plant_guardian/pages/ImageClassifierLiveScreen.dart';
 import 'package:plant_guardian/pages/ImageClassifierScreen.dart';
 import 'package:plant_guardian/pages/ChatScreen.dart';
@@ -20,6 +21,34 @@ Future<void> listAssets() async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  const token = const String.fromEnvironment('HUGGINGFACE_TOKEN');
+
+  FlutterGemma.initialize(huggingFaceToken: token.isNotEmpty ? token : null);
+
+  // Install an inference model first so FlutterGemma has an active model for inference.
+  await FlutterGemma.installModel(modelType: ModelType.gemmaIt)
+      .fromNetwork(
+        // 'https://huggingface.co/litert-community/gemma-3-270m-it/resolve/main/gemma3-270m-it-q8.task',
+        "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/Gemma3-1B-IT_multi-prefill-seq_q4_ekv2048.task",
+        token: token.isNotEmpty ? token : null,
+      )
+      .withProgress((progress) {
+        print('Downloading model: ${progress}%');
+      })
+      .install();
+
+  // await FlutterGemma.installEmbedder()
+  //     .modelFromNetwork(
+  //       'https://huggingface.co/litert-community/embeddinggemma-300m/resolve/main/embeddinggemma-300M_seq1024_mixed-precision.tflite',
+  //       token: token.isNotEmpty ? token : null,
+  //     )
+  //     .tokenizerFromNetwork(
+  //       'https://huggingface.co/litert-community/embeddinggemma-300m/resolve/main/sentencepiece.model',
+  //     )
+  //     .withModelProgress((progress) => print('Model: $progress%'))
+  //     .withTokenizerProgress((progress) => print('Tokenizer: $progress%'))
+  //     .install();
+
   await listAssets();
   await TFLiteHelper.init();
   runApp(const MyApp());
@@ -33,7 +62,26 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  bool _isDarkMode = false;
+  late bool _isDarkMode;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize from system/default platform brightness
+    final brightness =
+        WidgetsBinding.instance.platformDispatcher.platformBrightness;
+    _isDarkMode = brightness == Brightness.dark;
+
+    // Update if system theme changes
+    WidgetsBinding.instance.platformDispatcher.onPlatformBrightnessChanged =
+        () {
+          final newBrightness =
+              WidgetsBinding.instance.platformDispatcher.platformBrightness;
+          setState(() {
+            _isDarkMode = newBrightness == Brightness.dark;
+          });
+        };
+  }
 
   void _toggleTheme() {
     setState(() {

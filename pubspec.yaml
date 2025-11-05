@@ -47,6 +47,8 @@ dependencies:
   tokenizer_parser: ^0.1.0
   flutter_tts: ^3.4.0
 
+  flutter_gemma: ^0.11.8
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
