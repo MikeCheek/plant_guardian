@@ -14,112 +14,115 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<Map<String, String>> _messages = [];
   final AIAgent _agent = AIAgent();
   bool _isLoading = false;
+  String _currentBotText = ''; // for typing effect
 
-  // UI state that can be modified by tools
-  String _appTitle = '🌿 Plant Guardian';
-  Color _bgColor = Colors.white;
+  final ScrollController _scrollController = ScrollController();
+
+  void _scrollToBottom({
+    Duration duration = const Duration(milliseconds: 250),
+  }) {
+    // ensure layout is complete before trying to scroll
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      final bottom = _scrollController.position.maxScrollExtent;
+      try {
+        _scrollController.animateTo(
+          bottom,
+          duration: duration,
+          curve: Curves.easeOut,
+        );
+      } catch (_) {
+        // fallback if animateTo fails for any reason
+        _scrollController.jumpTo(bottom);
+      }
+    });
+  }
 
   @override
   void initState() {
     super.initState();
-
-    // Initialize the model (fire-and-forget). ask(...) will ensure init if needed.
     _agent.init();
 
-    // After first frame, give the agent a BuildContext so its built-in show_alert can work.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _agent.uiContext = context;
     });
-
-    // Register handlers so tools can actually change app UI.
-    _agent.registerToolHandler('change_app_title', (args) async {
-      final title = args['title']?.toString() ?? '';
-      if (mounted) {
-        setState(() {
-          _appTitle = title.isNotEmpty ? title : _appTitle;
-        });
-      }
-      return {'message': 'App title changed to "$_appTitle".'};
-    });
-
-    _agent.registerToolHandler('change_background_color', (args) async {
-      final colorName = args['color']?.toString() ?? '';
-      final color = _colorFromName(colorName);
-      if (mounted) {
-        setState(() {
-          _bgColor = color;
-        });
-      }
-      return {'message': 'Background color changed to "$colorName".'};
-    });
-
-    // Note: show_alert is implemented inside AIAgent and will use uiContext if provided.
   }
 
   @override
   void dispose() {
-    // AIAgent no longer exposes close(); just dispose the controller.
     _controller.dispose();
     super.dispose();
   }
 
+  /// Sends the user message and streams the AI’s response with typing effect.
   void _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isLoading) return;
+
     setState(() {
       _messages.add({'role': 'user', 'content': text});
       _isLoading = true;
       _controller.clear();
     });
 
-    final reply = await _agent.ask(text);
-    setState(() {
-      _messages.add({'role': 'bot', 'content': reply});
-      _isLoading = false;
-    });
-  }
-
-  Color _colorFromName(String name) {
-    switch (name.toLowerCase()) {
-      case 'red':
-        return Colors.red;
-      case 'blue':
-        return Colors.blue;
-      case 'green':
-        return Colors.green;
-      case 'yellow':
-        return Colors.yellow;
-      case 'purple':
-        return Colors.purple;
-      case 'orange':
-        return Colors.orange;
-      case 'black':
-        return Colors.black;
-      case 'grey':
-      case 'gray':
-        return Colors.grey;
-      case 'white':
-      default:
-        return Colors.white;
-    }
+    await _agent.ask(
+      text,
+      onThinking: (status) {
+        setState(() {
+          _currentBotText = status;
+          _scrollToBottom();
+        });
+      },
+      onPartialResponse: (partial) {
+        setState(() {
+          _currentBotText = partial;
+        });
+        _scrollToBottom();
+      },
+      onCompleted: (finalText) {
+        setState(() {
+          _messages.add({'role': 'bot', 'content': finalText});
+          _isLoading = false;
+          _currentBotText = '';
+          _scrollToBottom();
+        });
+      },
+      onError: (error) {
+        setState(() {
+          _messages.add({'role': 'bot', 'content': error});
+          _isLoading = false;
+          _currentBotText = '';
+          _scrollToBottom();
+        });
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_appTitle)),
-      backgroundColor: _bgColor,
       body: Column(
         children: [
           Expanded(
             child: ListView.builder(
-              itemCount: _messages.length,
+              controller: _scrollController,
+              itemCount:
+                  _messages.length + (_currentBotText.isNotEmpty ? 1 : 0),
               itemBuilder: (ctx, i) {
-                final msg = _messages[i];
-                return MessageBubble(
-                  text: msg['content']!,
-                  isUser: msg['role'] == 'user',
-                );
+                if (i < _messages.length) {
+                  final msg = _messages[i];
+                  return MessageBubble(
+                    text: msg['content']!,
+                    isUser: msg['role'] == 'user',
+                  );
+                } else {
+                  // The "thinking" or typing message being built live
+                  return MessageBubble(
+                    text: _currentBotText,
+                    isUser: false,
+                    isTyping: true, // optional param if you animate cursor
+                  );
+                }
               },
             ),
           ),
@@ -132,9 +135,11 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: TextField(
                     controller: _controller,
                     decoration: const InputDecoration(
-                      hintText: 'Ask about your plants...',
+                      hintText: 'Ask the AI...',
                     ),
                     onSubmitted: (_) => _sendMessage(),
+                    autofocus: true,
+                    textCapitalization: TextCapitalization.sentences,
                   ),
                 ),
                 IconButton(

@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:flutter_gemma/mobile/flutter_gemma_mobile.dart';
 import 'package:plant_guardian/pages/ImageClassifierLiveScreen.dart';
 import 'package:plant_guardian/pages/ImageClassifierScreen.dart';
 import 'package:plant_guardian/pages/ChatScreen.dart';
 
 import 'TFLiteHelper.dart';
+import 'pages/WelcomeScreen.dart';
 import 'theme.dart';
 
 import 'package:flutter/services.dart' show rootBundle;
+
+import 'widgets/drawer.dart';
 
 Future<void> listAssets() async {
   try {
@@ -62,17 +66,31 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  int _selectedIndex = 0;
   late bool _isDarkMode;
+
+  final List<Widget> _pages = [
+    const WelcomeScreen(),
+    const HomeContent(),
+    ImageClassifierLiveScreen(),
+    ImageClassifierScreen(),
+    const ChatScreen(),
+  ];
+
+  final List<String> _titles = [
+    "Welcome",
+    'Plant Guardian',
+    'Live Camera Classifier',
+    'Image Classifier',
+    '🤖 GuardAI 🪴',
+  ];
 
   @override
   void initState() {
     super.initState();
-    // Initialize from system/default platform brightness
     final brightness =
         WidgetsBinding.instance.platformDispatcher.platformBrightness;
     _isDarkMode = brightness == Brightness.dark;
-
-    // Update if system theme changes
     WidgetsBinding.instance.platformDispatcher.onPlatformBrightnessChanged =
         () {
           final newBrightness =
@@ -81,6 +99,12 @@ class _MyAppState extends State<MyApp> {
             _isDarkMode = newBrightness == Brightness.dark;
           });
         };
+  }
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
   }
 
   void _toggleTheme() {
@@ -95,136 +119,33 @@ class _MyAppState extends State<MyApp> {
       title: 'Plant Guardian',
       theme: _isDarkMode ? AppTheme.darkTheme : AppTheme.lightTheme,
       debugShowCheckedModeBanner: false,
-      initialRoute: '/',
-      routes: {
-        '/': (context) => MainLayout(
-          title: 'Plant Guardian',
-          isDarkMode: _isDarkMode,
-          toggleTheme: _toggleTheme,
-          showDrawer: true,
-          showBack: false,
-          child: const HomeContent(),
-        ),
-        '/second': (context) => MainLayout(
-          title: 'Live camera Classifier',
-          isDarkMode: _isDarkMode,
-          toggleTheme: _toggleTheme,
-          showDrawer: false,
-          showBack: true,
-          child: ImageClassifierLiveScreen(),
-        ),
-        '/third': (context) => MainLayout(
-          title: 'Image Classifier',
-          isDarkMode: _isDarkMode,
-          toggleTheme: _toggleTheme,
-          showDrawer: false,
-          showBack: true,
-          child: ImageClassifierScreen(),
-        ),
-        '/chat': (context) => MainLayout(
-          title: 'Chat with Plant Guardian',
-          isDarkMode: _isDarkMode,
-          toggleTheme: _toggleTheme,
-          showDrawer: false,
-          showBack: true,
-          child: const ChatScreen(),
-        ),
-      },
-    );
-  }
-}
-
-class MainLayout extends StatelessWidget {
-  final Widget child;
-  final bool isDarkMode;
-  final VoidCallback toggleTheme;
-  final String title;
-  final bool showDrawer;
-  final bool showBack;
-
-  const MainLayout({
-    Key? key,
-    required this.child,
-    required this.isDarkMode,
-    required this.toggleTheme,
-    required this.title,
-    this.showDrawer = false,
-    this.showBack = false,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        leading: showBack
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.of(context).maybePop(),
-              )
-            : null,
-        actions: [
-          IconButton(
-            icon: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),
-            onPressed: toggleTheme,
-          ),
-        ],
-      ),
-      drawer: showDrawer ? const AppDrawer() : null,
-      body: child,
-    );
-  }
-}
-
-class AppDrawer extends StatelessWidget {
-  const AppDrawer({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: <Widget>[
-          DrawerHeader(
-            decoration: BoxDecoration(color: Theme.of(context).primaryColor),
-            child: const Text(
-              'Plant Guardian',
-              style: TextStyle(color: Colors.white, fontSize: 24),
+      home: Scaffold(
+        appBar: AppBar(
+          title: Text(_titles[_selectedIndex]),
+          actions: [
+            IconButton(
+              icon: Icon(_isDarkMode ? Icons.light_mode : Icons.dark_mode),
+              onPressed: _toggleTheme,
             ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.home),
-            title: const Text('Home'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.pushReplacementNamed(context, '/');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.camera_alt),
-            title: const Text('Live camera Classifier'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.pushNamed(context, '/second');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.image),
-            title: const Text('Image Classifier'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.pushNamed(context, '/third');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.chat),
-            title: const Text('Chat with Plant Guardian'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.pushNamed(context, '/chat');
-            },
-          ),
-        ],
+          ],
+        ),
+        drawer: _selectedIndex == 0 ? const AppDrawer() : null,
+        body: _pages[_selectedIndex],
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _selectedIndex,
+          onTap: _onItemTapped,
+          type: BottomNavigationBarType.fixed,
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Welcome'),
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.camera_alt),
+              label: 'Live',
+            ),
+            BottomNavigationBarItem(icon: Icon(Icons.image), label: 'Gallery'),
+            BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Chat'),
+          ],
+        ),
       ),
     );
   }
