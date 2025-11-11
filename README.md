@@ -48,6 +48,10 @@ Below are some example predictions made by the app:
   <figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
     <img src="screenshots/sanseviera.jpg" alt="Sansevieria prediction" style="width:180px; height:auto; border-radius:6px;">
   </figure>
+
+   <figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
+    <img src="screenshots/ficuselastica.jpg" alt="Ficus elastica prediction" style="width:180px; height:auto; border-radius:6px;">
+  </figure>
 </div>
 
 ## GuardAI - AI Agent for Plant Care
