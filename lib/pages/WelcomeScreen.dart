@@ -59,7 +59,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Welcome'), centerTitle: true),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24.0),
         child: Column(
@@ -70,6 +69,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
               textAlign: TextAlign.center,
             ),
+            Image.asset('assets/images/guardian.png', width: 200, height: 300),
             const SizedBox(height: 12),
             const Text(
               'Please log in to your account or register a new one to continue.',

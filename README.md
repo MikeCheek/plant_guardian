@@ -1,20 +1,61 @@
-# plant_guardian
+# Plant Guardian
 
-A new Flutter project.
+An AI/ML powered plant monitoring and care application built with Flutter.
 
-## Getting Started
+*Disclaimer: This project is currently in its early stages of development. Features and functionalities are subject to change.*
 
-This project is a starting point for a Flutter application.
+## Features
+  - [x] Theme mode (light/dark)
+  - [x] ML plant classifier (TensorFlow Lite model)
+  - [x] Live camera classifier (real-time predictions)
+  - [x] AI agent chatbot (GuardAI)
+  - [ ] User authentication (accounts, secure sign-in)
+  - [ ] ML plant disease classifier (detect diseases & severity)
+  - [ ] Working AI Agent with tools (planner, web/tool access)
+  - [ ] My Garden management (add/remove plants, metadata)
+  - [ ] Notification reminders (watering, fertilizing, care tips)
 
-A few resources to get you started if this is your first Flutter project:
+## Screenshots from Early Development
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+![Welcome Screen](screenshots/welcome.jpg)
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### Live camera predictions
 
+To perform the plant species prediction, the app uses a trained TensorFlow Lite model integrated with the device's camera. 
+
+The notebook used to train the model can be found on my kaggle profile [here](https://www.kaggle.com/code/michelepulvirenti/house-plant-recognition-using-efficientnetv2b0).
+
+#### Final Model Performance
+
+| Metric                      | Value               |
+|---------------------------:|--------------------:|
+| Training Accuracy    | 0.9379              |
+| Validation Accuracy  | 0.9165              |
+| Training Loss        | 0.1965              |
+| Validation Loss      | 0.3731              |
+
+Below are some example predictions made by the app:
+
+<div style="display:flex; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
+  <figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
+    <img src="screenshots/monsteradeliciosa.jpg" alt="Monstera deliciosa prediction" style="width:180px; height:auto; border-radius:6px;">
+  </figure>
+
+  <figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
+    <img src="screenshots/orchid.jpg" alt="Orchid prediction" style="width:180px; height:auto; border-radius:6px;">
+  </figure>
+
+  <figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
+    <img src="screenshots/sanseviera.jpg" alt="Sansevieria prediction" style="width:180px; height:auto; border-radius:6px;">
+  </figure>
+</div>
+
+## GuardAI - AI Agent for Plant Care
+
+![GuardAI](screenshots/guardai.jpg)
+
+
+## Running the App
 
 ```bash
 flutter run --dart-define-from-file=config.json

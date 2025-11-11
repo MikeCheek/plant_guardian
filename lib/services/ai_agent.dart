@@ -95,9 +95,9 @@ class AIAgent {
 
   /// Create a chat with optional runtime parameters (temperature, function-calls, tools...)
   Future<void> createChat({
-    double temperature = 0.8,
+    double temperature = 0.1,
     int? randomSeed = 42,
-    int? topK = 64,
+    int? topK = 40,
     double? topP = 0.95,
     int tokenBuffer = 256,
     bool supportImage = false,
@@ -124,11 +124,23 @@ class AIAgent {
     await _chat?.addQueryChunk(
       Message.text(
         text: '''
-    You are a helpful assistant that helps the user with gardening advice.
-    ''',
+You are a helpful gardening assistant that can answer questions about plants and gardening.
+
+You have access to two tools:
+1. "local_knowledge" – searches a local plant knowledge base for information. Use this first whenever possible.
+   Parameters: { "query": string }
+2. "web_search" – searches the web for gardening or plant-related questions if the local knowledge base doesn't have enough information.
+   Parameters: { "query": string, "limit"?: integer }
+
+Always respond by either answering directly or using one of these two tools.
+When you do need to call a tool, respond with ONLY the JSON in this format: {"name": function_name, "parameters": {argument: value}}
+
+Never invent or call tools that are not listed above.
+''',
         isUser: false,
       ),
     );
+
     // You are a helpful assistant that helps the user with gardening advice.
     //     If a question about gardening, plants, or similar topics is asked to you:
     // - First check the local knowledge base by using the "local_knowledge" tool.
