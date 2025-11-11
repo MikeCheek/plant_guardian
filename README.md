@@ -27,12 +27,10 @@ The notebook used to train the model can be found on my kaggle profile [here](ht
 
 #### Final Model Performance
 
-| Metric                      | Value               |
-|---------------------------:|--------------------:|
-| Training Accuracy    | 0.9379              |
-| Validation Accuracy  | 0.9165              |
-| Training Loss        | 0.1965              |
-| Validation Loss      | 0.3731              |
+| Metric   | Training   | Validation   |
+|---------:|--------:|--------:|
+| Accuracy | 0.9379  | 0.9165  |
+| Loss     | 0.1965  | 0.3731  |
 
 Below are some example predictions made by the app:
 
