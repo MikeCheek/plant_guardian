@@ -14,6 +14,7 @@ An AI/ML powered plant monitoring and care application built with Flutter.
   - [ ] Working AI Agent with tools (planner, web/tool access)
   - [ ] My Garden management (add/remove plants, metadata)
   - [ ] Notification reminders (watering, fertilizing, care tips)
+  - [ ] Garbage recycling helper (identify & sort waste)
 
 ## Screenshots from Early Development
 
@@ -35,6 +36,10 @@ The notebook used to train the model can be found on my kaggle profile [here](ht
 Below are some example predictions made by the app:
 
 <div style="display:flex; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
+  <figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
+    <img src="screenshots/dumbcane.jpg" alt="Ficus elastica prediction" style="width:180px; height:auto; border-radius:6px;">
+  </figure>
+
   <figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
     <img src="screenshots/monsteradeliciosa.jpg" alt="Monstera deliciosa prediction" style="width:180px; height:auto; border-radius:6px;">
   </figure>
