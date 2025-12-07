@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/ai_agent.dart';
+// import '../services/ai_agent.dart';
+import '../services/llm.dart';
 import '../widgets/message_bubble.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -12,7 +13,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final List<Map<String, String>> _messages = [];
-  final AIAgent _agent = AIAgent();
+  final OnnxInferenceLLM _agent = OnnxInferenceLLM();
   bool _isLoading = false;
   String _currentBotText = ''; // for typing effect
 

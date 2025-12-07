@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:plant_guardian/pages/GoogleSignInScreen.dart';
 import 'package:plant_guardian/pages/HomeScreen.dart';
 import 'package:plant_guardian/pages/ImageClassifierLiveScreen.dart';
 import 'package:plant_guardian/pages/ImageClassifierScreen.dart';
 import 'package:plant_guardian/pages/ChatScreen.dart';
+import 'package:plant_guardian/pages/LoginScreen.dart';
+import 'package:plant_guardian/pages/RegisterScreen.dart';
 
 import '../pages/WelcomeScreen.dart';
 import '../theme.dart';
@@ -20,7 +23,6 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
   late bool _isDarkMode;
 
   final List<Widget> _pages = [
-    const WelcomeScreen(),
     const HomeScreen(),
     ImageClassifierLiveScreen(),
     ImageClassifierScreen(),
@@ -28,7 +30,6 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
   ];
 
   final List<String> _titles = [
-    "Welcome",
     'Plant Guardian',
     'Live Camera Classifier',
     'Image Classifier',
@@ -68,6 +69,13 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
     return MaterialApp(
       title: 'Plant Guardian',
       theme: _isDarkMode ? AppTheme.darkTheme : AppTheme.lightTheme,
+      initialRoute: '/welcome',
+      routes: {
+        '/welcome': (context) => const WelcomeScreen(),
+        '/login': (context) => LoginScreen(),
+        '/register': (context) => RegisterScreen(),
+        '/googleSignIn': (context) => GoogleSignInScreen(),
+      },
       debugShowCheckedModeBanner: false,
       home: Scaffold(
         appBar: AppBar(
@@ -86,7 +94,6 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
           onTap: _onItemTapped,
           type: BottomNavigationBarType.fixed,
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Welcome'),
             BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
             BottomNavigationBarItem(
               icon: Icon(Icons.camera_alt),

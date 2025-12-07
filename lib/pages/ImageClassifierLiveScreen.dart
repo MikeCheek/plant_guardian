@@ -18,6 +18,7 @@ class _ImageClassifierLiveScreenState extends State<ImageClassifierLiveScreen> {
   bool _isProcessing = false;
   List<CameraDescription>? cameras;
   bool _isPaused = true;
+  bool isInitialized = false;
 
   @override
   void initState() {
@@ -33,6 +34,7 @@ class _ImageClassifierLiveScreenState extends State<ImageClassifierLiveScreen> {
       enableAudio: false,
     );
     await _cameraController!.initialize();
+    isInitialized = true;
     _cameraController!.startImageStream(_processCameraImage);
     setState(() {});
   }
@@ -84,6 +86,7 @@ class _ImageClassifierLiveScreenState extends State<ImageClassifierLiveScreen> {
   }
 
   void _togglePause() {
+    if (!isInitialized) return;
     setState(() {
       _isPaused = !_isPaused;
       if (_isPaused) {
@@ -129,7 +132,8 @@ class _ImageClassifierLiveScreenState extends State<ImageClassifierLiveScreen> {
                   bottom: 24,
                   right: 24,
                   child: FloatingActionButton(
-                    onPressed: _togglePause,
+                    onPressed: isInitialized ? null : _togglePause,
+                    backgroundColor: isInitialized ? Colors.grey : null,
                     tooltip: _isPaused
                         ? 'Resume Predictions'
                         : 'Pause Predictions',

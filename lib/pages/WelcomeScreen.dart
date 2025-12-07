@@ -1,7 +1,8 @@
-import 'dart:convert';
+// import 'dart:convert';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+// import 'package:shared_preferences/shared_preferences.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({Key? key}) : super(key: key);
@@ -21,27 +22,35 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   }
 
   Future<void> _checkLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
-    final logged = prefs.getBool('isLoggedIn') ?? false;
-    if (logged) {
-      final rawUser = prefs.getString('userInfo');
-      if (rawUser != null) {
-        try {
-          _userInfo = jsonDecode(rawUser) as Map<String, dynamic>;
-        } catch (_) {
-          _userInfo = null;
-        }
+    try {
+      User? user = FirebaseAuth.instance.currentUser;
+
+      if (user != null) {
+        await user.reload();
+        user = FirebaseAuth.instance.currentUser;
+
+        if (!mounted) return;
+
+        setState(() {
+          _userInfo = {
+            'uid': user!.uid,
+            'email': user.email,
+            'displayName': user.displayName,
+          };
+          _checking = false; // <-- stop loading so UI can show email
+        });
+
+        // Wait 1 second before navigating
+        await Future.delayed(const Duration(seconds: 1));
+
+        if (!mounted) return;
+        Navigator.of(context).pushReplacementNamed('/', arguments: _userInfo);
+        return;
       }
-      if (!mounted) return;
-      // Replace route with home and pass loaded user info as arguments (optional)
-      Navigator.of(context).pushReplacementNamed('/home', arguments: _userInfo);
-      return;
-    }
+    } catch (_) {}
 
     if (!mounted) return;
-    setState(() {
-      _checking = false;
-    });
+    setState(() => _checking = false);
   }
 
   void _openLogin() {
@@ -52,10 +61,37 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     Navigator.of(context).pushNamed('/register');
   }
 
+  void _openGoogleSignIn() {
+    Navigator.of(context).pushNamed('/googleSignIn');
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_checking) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (_userInfo != null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'Welcome back!',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _userInfo!['email'] ?? '',
+                style: const TextStyle(fontSize: 18),
+              ),
+              const SizedBox(height: 24),
+              const CircularProgressIndicator(),
+            ],
+          ),
+        ),
+      );
     }
 
     return Scaffold(
@@ -91,11 +127,19 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 child: const Text('Register'),
               ),
             ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: _openGoogleSignIn,
+                child: const Text('Sign in with Google'),
+              ),
+            ),
             const SizedBox(height: 20),
             TextButton(
               onPressed: () {
                 // Optionally allow guest access to home without stored credentials
-                Navigator.of(context).pushReplacementNamed('/home');
+                Navigator.of(context).pushReplacementNamed('/');
               },
               child: const Text('Continue without logging in'),
             ),

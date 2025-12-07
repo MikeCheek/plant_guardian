@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
 
 import 'rag_base.dart';
-import 'web_search.dart'; // <-- added: adjust path if needed
+import 'web_search.dart';
 
 typedef ToolHandler =
     Future<Map<String, dynamic>> Function(Map<String, dynamic> args);
