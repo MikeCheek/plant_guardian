@@ -40,8 +40,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           _checking = false; // <-- stop loading so UI can show email
         });
 
-        // Wait 1 second before navigating
-        await Future.delayed(const Duration(seconds: 1));
+        // Wait 2 seconds before navigating
+        await Future.delayed(const Duration(seconds: 2));
 
         if (!mounted) return;
         Navigator.of(context).pushReplacementNamed('/', arguments: _userInfo);
@@ -83,7 +83,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                _userInfo!['email'] ?? '',
+                _userInfo!['displayName'] ?? '',
                 style: const TextStyle(fontSize: 18),
               ),
               const SizedBox(height: 24),

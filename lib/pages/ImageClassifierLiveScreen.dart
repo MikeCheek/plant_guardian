@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 
@@ -8,7 +7,7 @@ class ImageClassifierLiveScreen extends StatefulWidget {
   const ImageClassifierLiveScreen({super.key});
 
   @override
-  _ImageClassifierLiveScreenState createState() =>
+  State<ImageClassifierLiveScreen> createState() =>
       _ImageClassifierLiveScreenState();
 }
 
@@ -16,9 +15,13 @@ class _ImageClassifierLiveScreenState extends State<ImageClassifierLiveScreen> {
   CameraController? _cameraController;
   List<String> _predictions = [];
   bool _isProcessing = false;
-  List<CameraDescription>? cameras;
   bool _isPaused = true;
-  bool isInitialized = false;
+
+  /// NEW: disable UI until init finished
+  bool _initializing = true;
+
+  List<CameraDescription>? _cameras;
+  int _frameCount = 0;
 
   @override
   void initState() {
@@ -27,49 +30,60 @@ class _ImageClassifierLiveScreenState extends State<ImageClassifierLiveScreen> {
   }
 
   Future<void> _initCamera() async {
-    cameras = await availableCameras();
-    _cameraController = CameraController(
-      cameras!.first,
-      ResolutionPreset.medium,
-      enableAudio: false,
-    );
-    await _cameraController!.initialize();
-    isInitialized = true;
-    _cameraController!.startImageStream(_processCameraImage);
-    setState(() {});
+    try {
+      _cameras = await availableCameras();
+
+      final camera = _cameras!.first;
+
+      /// IMPORTANT FIX: Use only Preview + ImageAnalysis
+      _cameraController = CameraController(
+        camera,
+        ResolutionPreset.low, // Safe resolution
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.yuv420, // required for analysis
+      );
+
+      await _cameraController!.initialize();
+
+      /// Only start the stream once initialized
+      await _cameraController!.startImageStream(_processCameraImage);
+    } catch (e) {
+      debugPrint("Camera init failed: $e");
+    }
+
+    if (!mounted) return;
+
+    setState(() => _initializing = false);
   }
 
-  int _frameCount = 0;
-
   Future<void> _processCameraImage(CameraImage image) async {
+    if (_isPaused) return;
+
     _frameCount++;
-    if (_isPaused || _frameCount % 25 != 0 || _isProcessing) {
-      return; // Only every 25th frame
-    }
+    if (_frameCount % 25 != 0) return;
+
+    if (_isProcessing) return;
     _isProcessing = true;
+
     try {
       final (result, score) = await TFLiteHelper.classifyCameraImage(image);
+
       if (score < 0.5) {
-        // Skip low confidence predictions
         _isProcessing = false;
         return;
       }
+
       setState(() {
         _predictions.insert(
           0,
-          '$result (${(score * 100).toStringAsFixed(2)}%)',
+          "$result (${(score * 100).toStringAsFixed(1)}%)",
         );
         if (_predictions.length > 10) {
           _predictions = _predictions.sublist(0, 10);
         }
       });
     } catch (e) {
-      setState(() {
-        _predictions.insert(0, "Error: $e");
-        if (_predictions.length > 10) {
-          _predictions = _predictions.sublist(0, 10);
-        }
-      });
+      debugPrint("Prediction error: $e");
     } finally {
       _isProcessing = false;
     }
@@ -86,70 +100,62 @@ class _ImageClassifierLiveScreenState extends State<ImageClassifierLiveScreen> {
   }
 
   void _togglePause() {
-    if (!isInitialized) return;
+    if (_initializing) return; // NEW: disable button during init
+
     setState(() {
       _isPaused = !_isPaused;
-      if (_isPaused) {
-        if (_cameraController != null &&
-            _cameraController!.value.isStreamingImages) {
-          _cameraController!.stopImageStream();
-        }
-      } else {
-        if (_cameraController != null &&
-            !_cameraController!.value.isStreamingImages) {
-          _cameraController!.startImageStream(_processCameraImage);
-        }
-      }
     });
   }
 
   void _toggleFlash() {
-    if (_cameraController != null) {
-      _cameraController!.setFlashMode(
-        _cameraController!.value.flashMode == FlashMode.off
-            ? FlashMode.torch
-            : FlashMode.off,
-      );
-      setState(() {});
-    }
+    if (_initializing) return; // NEW: disable button
+
+    if (_cameraController == null) return;
+
+    final flashOn = _cameraController!.value.flashMode == FlashMode.torch;
+
+    _cameraController!.setFlashMode(flashOn ? FlashMode.off : FlashMode.torch);
+
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // appBar: AppBar(title: Text('Live Image Classifier')),
       body: Column(
         children: [
           Expanded(
             flex: 2,
             child: Stack(
               children: [
-                _cameraController != null &&
-                        _cameraController!.value.isInitialized
-                    ? CameraPreview(_cameraController!)
-                    : Center(child: CircularProgressIndicator()),
+                if (_initializing || _cameraController == null)
+                  const Center(child: CircularProgressIndicator())
+                else if (!_cameraController!.value.isInitialized)
+                  const Center(child: CircularProgressIndicator())
+                else
+                  CameraPreview(_cameraController!),
+
+                /// Pause button
                 Positioned(
                   bottom: 24,
                   right: 24,
                   child: FloatingActionButton(
-                    onPressed: isInitialized ? null : _togglePause,
-                    backgroundColor: isInitialized ? Colors.grey : null,
-                    tooltip: _isPaused
-                        ? 'Resume Predictions'
-                        : 'Pause Predictions',
+                    onPressed: _initializing ? null : _togglePause,
+                    backgroundColor: _initializing ? Colors.grey : Colors.blue,
                     child: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
                   ),
                 ),
+
+                /// Flash button
                 Positioned(
                   bottom: 24,
                   left: 24,
                   child: FloatingActionButton(
-                    onPressed: _toggleFlash,
-                    tooltip: 'Toggle Flash',
+                    onPressed: _initializing ? null : _toggleFlash,
+                    backgroundColor: _initializing ? Colors.grey : Colors.blue,
                     child: Icon(
-                      _cameraController != null &&
-                              _cameraController!.value.flashMode ==
-                                  FlashMode.torch
+                      (_cameraController?.value.flashMode ?? FlashMode.off) ==
+                              FlashMode.torch
                           ? Icons.flash_on
                           : Icons.flash_off,
                     ),
@@ -158,27 +164,25 @@ class _ImageClassifierLiveScreenState extends State<ImageClassifierLiveScreen> {
               ],
             ),
           ),
+
+          /// Predictions
           Expanded(
             flex: 1,
             child: Padding(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: ListView.builder(
                 itemCount: _predictions.length,
-                itemBuilder: (context, index) {
-                  // Top prediction is largest, older ones get smaller
-                  final baseFontSize = 22.0;
-                  final fontSize = (baseFontSize - index).clamp(
-                    12.0,
-                    baseFontSize,
-                  );
-                  final opacity = 1.0 - (index * 0.05);
+                itemBuilder: (_, index) {
+                  final size = (22 - index).clamp(12, 22).toDouble();
+                  final opacity = (1 - index * 0.05).clamp(0.3, 1.0);
+
                   return Opacity(
-                    opacity: opacity.clamp(0.3, 1.0),
+                    opacity: opacity,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4.0),
+                      padding: const EdgeInsets.symmetric(vertical: 4),
                       child: Text(
                         _predictions[index],
-                        style: TextStyle(fontSize: fontSize),
+                        style: TextStyle(fontSize: size),
                         textAlign: TextAlign.center,
                       ),
                     ),

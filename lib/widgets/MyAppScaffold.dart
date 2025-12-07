@@ -6,6 +6,7 @@ import 'package:plant_guardian/pages/ImageClassifierScreen.dart';
 import 'package:plant_guardian/pages/ChatScreen.dart';
 import 'package:plant_guardian/pages/LoginScreen.dart';
 import 'package:plant_guardian/pages/RegisterScreen.dart';
+import 'package:plant_guardian/pages/UserScreen.dart';
 
 import '../pages/WelcomeScreen.dart';
 import '../theme.dart';
@@ -27,6 +28,7 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
     ImageClassifierLiveScreen(),
     ImageClassifierScreen(),
     const ChatScreen(),
+    UserScreen(),
   ];
 
   final List<String> _titles = [
@@ -34,6 +36,7 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
     'Live Camera Classifier',
     'Image Classifier',
     '🤖 GuardAI 🪴',
+    'Profile',
   ];
 
   @override
@@ -101,6 +104,7 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
             ),
             BottomNavigationBarItem(icon: Icon(Icons.image), label: 'Gallery'),
             BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Chat'),
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
           ],
         ),
       ),
