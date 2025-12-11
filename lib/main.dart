@@ -8,7 +8,6 @@ import 'widgets/firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  print(firebaseOptions);
   await Firebase.initializeApp(options: firebaseOptions);
   runApp(ChangeNotifierProvider(create: (_) => AuthService(), child: MyApp()));
 }

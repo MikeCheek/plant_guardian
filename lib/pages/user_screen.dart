@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
+import 'package:plant_guardian/widgets/image_helper.dart';
 
 class UserScreen extends StatefulWidget {
   const UserScreen({super.key});
@@ -104,24 +105,7 @@ class _UserScreenState extends State<UserScreen> {
     if (picked != null) {
       final File pickedFile = File(picked.path);
 
-      final CroppedFile? croppedFile = await ImageCropper().cropImage(
-        sourcePath: pickedFile.path,
-        aspectRatio: const CropAspectRatio(ratioX: 1.0, ratioY: 1.0),
-        uiSettings: [
-          AndroidUiSettings(
-            toolbarTitle: 'Crop Profile Picture',
-            toolbarColor: Theme.of(context).primaryColor,
-            toolbarWidgetColor: Colors.white,
-            initAspectRatio: CropAspectRatioPreset.square,
-            lockAspectRatio: true,
-          ),
-          IOSUiSettings(
-            title: 'Crop Profile Picture',
-            aspectRatioLockEnabled: true,
-            aspectRatioPresets: [CropAspectRatioPreset.square],
-          ),
-        ],
-      );
+      final CroppedFile? croppedFile = await cropImage(context, pickedFile);
 
       if (croppedFile != null) {
         setState(() => _newImageFile = File(croppedFile.path));
@@ -136,26 +120,7 @@ class _UserScreenState extends State<UserScreen> {
 
     try {
       if (_newImageFile != null) {
-        // ... (Image resizing and Base64 encoding logic remains the same) ...
-        final List<int> imageBytes = await _newImageFile!.readAsBytes();
-        final img.Image? originalImage = img.decodeImage(
-          Uint8List.fromList(imageBytes),
-        );
-
-        if (originalImage != null) {
-          final img.Image resizedImage = img.copyResize(
-            originalImage,
-            width: 256,
-            height: 256,
-            interpolation: img.Interpolation.average,
-          );
-          final List<int> resizedBytes = img.encodeJpg(
-            resizedImage,
-            quality: 80,
-          );
-          final String base64String = base64Encode(resizedBytes);
-          base64Data = 'data:image/jpeg;base64,$base64String';
-        }
+        base64Data = await convertAndCompressImage(_newImageFile, 256);
       }
 
       await _firestore.collection("users").doc(uid).set({

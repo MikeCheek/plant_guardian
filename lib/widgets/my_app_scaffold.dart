@@ -6,6 +6,8 @@ import 'package:plant_guardian/pages/image_classifier_live_screen.dart';
 import 'package:plant_guardian/pages/image_classifier_screen.dart';
 import 'package:plant_guardian/pages/chat_screen.dart';
 import 'package:plant_guardian/pages/login_screen.dart';
+import 'package:plant_guardian/pages/new_plant_screen.dart';
+import 'package:plant_guardian/pages/plant_info_screen.dart';
 import 'package:plant_guardian/pages/register_screen.dart';
 import 'package:plant_guardian/pages/user_screen.dart';
 
@@ -79,6 +81,10 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
         '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),
         '/googleSignIn': (context) => GoogleSignInScreen(),
+        '/plants': (context) => NewPlantScreen(),
+        '/plant': (context) => PlantInfoScreen(
+          plantDbId: ModalRoute.of(context)!.settings.arguments as String,
+        ),
       },
       debugShowCheckedModeBanner: false,
       home: Scaffold(
