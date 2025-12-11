@@ -74,8 +74,7 @@ class AuthService with ChangeNotifier {
 
       googleUser = await signIn.authenticate();
 
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
       final OAuthCredential credential = GoogleAuthProvider.credential(
         // accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,

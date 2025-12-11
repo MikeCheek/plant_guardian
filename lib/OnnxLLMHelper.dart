@@ -86,8 +86,9 @@ class OnnxLLMHelper {
     }
 
     final initialLength = currentTokens.length;
-    if (initialLength == 0)
+    if (initialLength == 0) {
       return; // Exit if prompt is empty (use 'return' for streams)
+    }
 
     print("⏳ Running ONNX inference loop for up to $maxNewTokens tokens...");
 

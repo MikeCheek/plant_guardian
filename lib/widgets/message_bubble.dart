@@ -61,11 +61,9 @@ class MessageBubble extends StatelessWidget {
     for (var li = 0; li < lines.length; li++) {
       final line = lines[li];
       String segment = line;
-      bool isListItem = false;
 
       final listMatch = listItemPattern.firstMatch(line);
       if (listMatch != null) {
-        isListItem = true;
         segment = listMatch.group(2) ?? '';
         // Add bullet prefix
         spans.add(TextSpan(text: '• ', style: baseStyle));

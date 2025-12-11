@@ -40,8 +40,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           _checking = false; // <-- stop loading so UI can show email
         });
 
-        // Wait 2 seconds before navigating
-        await Future.delayed(const Duration(seconds: 2));
+        // Wait before navigating
+        await Future.delayed(const Duration(seconds: 1));
 
         if (!mounted) return;
         Navigator.of(context).pushReplacementNamed('/', arguments: _userInfo);

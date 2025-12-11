@@ -11,14 +11,14 @@ class MainLayout extends StatelessWidget {
   final bool showBack;
 
   const MainLayout({
-    Key? key,
+    super.key,
     required this.child,
     required this.isDarkMode,
     required this.toggleTheme,
     required this.title,
     this.showDrawer = false,
     this.showBack = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

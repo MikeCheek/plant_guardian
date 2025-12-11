@@ -25,8 +25,8 @@ class WebSearch {
             .timeout(timeout);
 
         for (final entry in entries) {
-          final title = (entry.title ?? entry.body ?? '').toString().trim();
-          final link = (entry.link ?? '').toString();
+          final title = (entry.title).toString().trim();
+          final link = (entry.link).toString();
           if (title.isNotEmpty || link.isNotEmpty) {
             results.add({'title': title, 'url': link});
           }

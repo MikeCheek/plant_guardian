@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_gemma/flutter_gemma.dart';
+// import 'package:flutter_gemma/flutter_gemma.dart';
 // import 'package:flutter_gemma/mobile/flutter_gemma_mobile.dart';
 import 'package:plant_guardian/OnnxLLMHelper.dart';
 
 import '../TFLiteHelper.dart';
-import '../widgets/MyAppScaffold.dart';
+import '../widgets/my_app_scaffold.dart';
 
 class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
@@ -22,26 +24,26 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> initializeApp() async {
-    const token = String.fromEnvironment('HUGGINGFACE_TOKEN');
+    // const token = String.fromEnvironment('HUGGINGFACE_TOKEN');
 
     final steps = [
-      {
-        "status": "Downloading AI model...",
-        "action": () async {
-          await FlutterGemma.installModel(modelType: ModelType.gemmaIt)
-              .fromNetwork(
-                "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/Gemma3-1B-IT_multi-prefill-seq_q4_ekv2048.task",
-                // "https://huggingface.co/litert-community/DeepSeek-R1-Distill-Qwen-1.5B/resolve/main/deepseek_q8_ekv1280.task",
-                token: token.isNotEmpty ? token : null,
-              )
-              .withProgress((prog) {
-                setState(() {
-                  progress = 0.2 + (prog / 100) * 0.6;
-                });
-              })
-              .install();
-        },
-      },
+      // {
+      //   "status": "Downloading AI model...",
+      //   "action": () async {
+      //     await FlutterGemma.installModel(modelType: ModelType.gemmaIt)
+      //         .fromNetwork(
+      //           "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/Gemma3-1B-IT_multi-prefill-seq_q4_ekv2048.task",
+      //           // "https://huggingface.co/litert-community/DeepSeek-R1-Distill-Qwen-1.5B/resolve/main/deepseek_q8_ekv1280.task",
+      //           token: token.isNotEmpty ? token : null,
+      //         )
+      //         .withProgress((prog) {
+      //           setState(() {
+      //             progress = 0.2 + (prog / 100) * 0.6;
+      //           });
+      //         })
+      //         .install();
+      //   },
+      // },
       {
         "status": "Initializing TFLite...",
         "action": () async => await TFLiteHelper.init(),
@@ -75,7 +77,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.green,
+      backgroundColor: Colors.blueGrey,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -85,7 +87,11 @@ class _SplashScreenState extends State<SplashScreen> {
               style: Theme.of(context).textTheme.headlineLarge,
             ),
             const SizedBox(height: 24),
-            LinearProgressIndicator(value: progress),
+            LinearProgressIndicator(
+              value: progress,
+              backgroundColor: Colors.green,
+              minHeight: 5,
+            ),
             const SizedBox(height: 16),
             Text(status),
           ],

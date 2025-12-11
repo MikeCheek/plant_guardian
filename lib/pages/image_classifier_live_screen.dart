@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:camera_android_camerax/camera_android_camerax.dart';
+import 'package:flutter/services.dart';
 
 import '../TFLiteHelper.dart';
 
@@ -13,75 +15,72 @@ class ImageClassifierLiveScreen extends StatefulWidget {
 
 class _ImageClassifierLiveScreenState extends State<ImageClassifierLiveScreen> {
   CameraController? _cameraController;
+  List<CameraDescription>? _cameras;
+
   List<String> _predictions = [];
   bool _isProcessing = false;
   bool _isPaused = true;
-
-  /// NEW: disable UI until init finished
   bool _initializing = true;
 
-  List<CameraDescription>? _cameras;
   int _frameCount = 0;
 
   @override
   void initState() {
     super.initState();
+    TFLiteHelper.init();
     _initCamera();
   }
 
   Future<void> _initCamera() async {
     try {
       _cameras = await availableCameras();
-
       final camera = _cameras!.first;
 
-      /// IMPORTANT FIX: Use only Preview + ImageAnalysis
       _cameraController = CameraController(
         camera,
-        ResolutionPreset.low, // Safe resolution
+        ResolutionPreset.medium,
         enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.yuv420, // required for analysis
+        imageFormatGroup: ImageFormatGroup.yuv420,
       );
 
       await _cameraController!.initialize();
-
-      /// Only start the stream once initialized
-      await _cameraController!.startImageStream(_processCameraImage);
     } catch (e) {
       debugPrint("Camera init failed: $e");
     }
 
     if (!mounted) return;
-
     setState(() => _initializing = false);
   }
 
-  Future<void> _processCameraImage(CameraImage image) async {
-    if (_isPaused) return;
+  Future<void> _processCameraImage(CameraImage cameraImage) async {
+    if (_isPaused || _isProcessing) return;
 
     _frameCount++;
-    if (_frameCount % 25 != 0) return;
+    if (_frameCount % 5 != 0) return;
 
-    if (_isProcessing) return;
     _isProcessing = true;
 
     try {
-      final (result, score) = await TFLiteHelper.classifyCameraImage(image);
+      final (result, score) = await TFLiteHelper.classifyCameraImage(
+        cameraImage,
+      );
 
       if (score < 0.5) {
         _isProcessing = false;
         return;
       }
 
-      setState(() {
-        _predictions.insert(
-          0,
-          "$result (${(score * 100).toStringAsFixed(1)}%)",
-        );
-        if (_predictions.length > 10) {
-          _predictions = _predictions.sublist(0, 10);
-        }
-      });
+      if (mounted) {
+        setState(() {
+          _predictions.insert(
+            0,
+            "$result (${(score * 100).toStringAsFixed(1)}%)",
+          );
+          if (_predictions.length > 10) {
+            _predictions = _predictions.sublist(0, 10);
+          }
+        });
+      }
     } catch (e) {
       debugPrint("Prediction error: $e");
     } finally {
@@ -89,34 +88,34 @@ class _ImageClassifierLiveScreenState extends State<ImageClassifierLiveScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    if (_cameraController != null &&
-        _cameraController!.value.isStreamingImages) {
-      _cameraController!.stopImageStream();
-    }
-    _cameraController?.dispose();
-    super.dispose();
-  }
-
   void _togglePause() {
-    if (_initializing) return; // NEW: disable button during init
-
+    if (_initializing) return;
+    if (_isPaused) {
+      _cameraController?.startImageStream(_processCameraImage);
+    } else {
+      _cameraController?.stopImageStream();
+    }
     setState(() {
       _isPaused = !_isPaused;
     });
   }
 
   void _toggleFlash() {
-    if (_initializing) return; // NEW: disable button
+    if (_initializing || _cameraController == null) return;
 
-    if (_cameraController == null) return;
-
-    final flashOn = _cameraController!.value.flashMode == FlashMode.torch;
+    final flashMode = _cameraController!.value.flashMode;
+    final flashOn = flashMode == FlashMode.torch;
 
     _cameraController!.setFlashMode(flashOn ? FlashMode.off : FlashMode.torch);
 
     setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _cameraController?.stopImageStream();
+    _cameraController?.dispose();
+    super.dispose();
   }
 
   @override
@@ -128,14 +127,13 @@ class _ImageClassifierLiveScreenState extends State<ImageClassifierLiveScreen> {
             flex: 2,
             child: Stack(
               children: [
-                if (_initializing || _cameraController == null)
-                  const Center(child: CircularProgressIndicator())
-                else if (!_cameraController!.value.isInitialized)
+                if (_initializing ||
+                    _cameraController == null ||
+                    !_cameraController!.value.isInitialized)
                   const Center(child: CircularProgressIndicator())
                 else
                   CameraPreview(_cameraController!),
 
-                /// Pause button
                 Positioned(
                   bottom: 24,
                   right: 24,
@@ -146,7 +144,6 @@ class _ImageClassifierLiveScreenState extends State<ImageClassifierLiveScreen> {
                   ),
                 ),
 
-                /// Flash button
                 Positioned(
                   bottom: 24,
                   left: 24,
@@ -165,7 +162,6 @@ class _ImageClassifierLiveScreenState extends State<ImageClassifierLiveScreen> {
             ),
           ),
 
-          /// Predictions
           Expanded(
             flex: 1,
             child: Padding(

@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:plant_guardian/pages/GoogleSignInScreen.dart';
-import 'package:plant_guardian/pages/HomeScreen.dart';
-import 'package:plant_guardian/pages/ImageClassifierLiveScreen.dart';
-import 'package:plant_guardian/pages/ImageClassifierScreen.dart';
-import 'package:plant_guardian/pages/ChatScreen.dart';
-import 'package:plant_guardian/pages/LoginScreen.dart';
-import 'package:plant_guardian/pages/RegisterScreen.dart';
-import 'package:plant_guardian/pages/UserScreen.dart';
+import 'package:plant_guardian/pages/garden_list_screen.dart';
+import 'package:plant_guardian/pages/google_sign_in_screen.dart';
+import 'package:plant_guardian/pages/home_screen.dart';
+import 'package:plant_guardian/pages/image_classifier_live_screen.dart';
+import 'package:plant_guardian/pages/image_classifier_screen.dart';
+import 'package:plant_guardian/pages/chat_screen.dart';
+import 'package:plant_guardian/pages/login_screen.dart';
+import 'package:plant_guardian/pages/register_screen.dart';
+import 'package:plant_guardian/pages/user_screen.dart';
 
-import '../pages/WelcomeScreen.dart';
+import '../pages/welcome_screen.dart';
 import '../theme.dart';
 import 'drawer.dart';
 
@@ -25,7 +26,7 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
 
   final List<Widget> _pages = [
     const HomeScreen(),
-    ImageClassifierLiveScreen(),
+    GardenListScreen(),
     ImageClassifierScreen(),
     const ChatScreen(),
     UserScreen(),
@@ -33,7 +34,7 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
 
   final List<String> _titles = [
     'Plant Guardian',
-    'Live Camera Classifier',
+    'Garden',
     'Image Classifier',
     '🤖 GuardAI 🪴',
     'Profile',
@@ -99,8 +100,8 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
             BottomNavigationBarItem(
-              icon: Icon(Icons.camera_alt),
-              label: 'Live',
+              icon: Icon(Icons.local_florist),
+              label: 'Garden',
             ),
             BottomNavigationBarItem(icon: Icon(Icons.image), label: 'Gallery'),
             BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Chat'),
