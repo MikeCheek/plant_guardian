@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:plant_guardian/pages/garden_list_screen.dart';
 import 'package:plant_guardian/pages/google_sign_in_screen.dart';
@@ -31,7 +35,6 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
     GardenListScreen(),
     ImageClassifierScreen(),
     const ChatScreen(),
-    UserScreen(),
   ];
 
   final List<String> _titles = [
@@ -39,23 +42,50 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
     'Garden',
     'Image Classifier',
     '🤖 GuardAI 🪴',
-    'Profile',
   ];
 
   @override
   void initState() {
     super.initState();
-    final brightness =
-        WidgetsBinding.instance.platformDispatcher.platformBrightness;
-    _isDarkMode = brightness == Brightness.dark;
+    _loadThemePreference();
     WidgetsBinding.instance.platformDispatcher.onPlatformBrightnessChanged =
         () {
-          final newBrightness =
-              WidgetsBinding.instance.platformDispatcher.platformBrightness;
-          setState(() {
-            _isDarkMode = newBrightness == Brightness.dark;
-          });
+          _loadThemePreference();
         };
+  }
+
+  Future<void> _loadThemePreference() async {
+    final user = FirebaseAuth.instance.currentUser;
+    bool darkMode;
+
+    if (user != null) {
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection("users")
+            .doc(user.uid)
+            .get();
+
+        if (userDoc.exists && userDoc.data() != null) {
+          darkMode = userDoc.data()!['darkMode'] ?? false;
+        } else {
+          darkMode =
+              WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+              Brightness.dark;
+        }
+      } catch (e) {
+        darkMode =
+            WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+            Brightness.dark;
+      }
+    } else {
+      darkMode =
+          WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+          Brightness.dark;
+    }
+
+    setState(() {
+      _isDarkMode = darkMode;
+    });
   }
 
   void _onItemTapped(int index) {
@@ -65,9 +95,61 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
   }
 
   void _toggleTheme() {
+    var newMode = !_isDarkMode;
+
     setState(() {
-      _isDarkMode = !_isDarkMode;
+      _isDarkMode = newMode;
     });
+
+    // add or update preference on user document
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userDoc = FirebaseFirestore.instance
+          .collection("users")
+          .doc(user.uid);
+      userDoc.set({'darkMode': newMode}, SetOptions(merge: true));
+    }
+  }
+
+  Widget _buildAppBarAction() {
+    final user = FirebaseAuth.instance.currentUser;
+
+    // 2. If we are on any other page, show User Image
+    if (user == null) return const SizedBox.shrink();
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection("users")
+          .doc(user.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        ImageProvider imageProvider = const AssetImage(
+          "assets/images/user-placeholder.jpg",
+        );
+
+        if (snapshot.hasData && snapshot.data!.exists) {
+          final data = snapshot.data!.data() as Map<String, dynamic>;
+          final String? photoData = data["photoUrl"];
+
+          // Reuse your Base64 check logic
+          if (photoData != null && photoData.startsWith('data:image')) {
+            final base64String = photoData.split(',').last;
+            imageProvider = MemoryImage(base64Decode(base64String));
+          }
+        }
+
+        return GestureDetector(
+          onTap: () => Navigator.of(context).pushNamed(
+            '/user',
+            arguments: {
+              'isDarkMode': _isDarkMode,
+              'onToggleTheme': _toggleTheme,
+            },
+          ),
+          child: CircleAvatar(radius: 20, backgroundImage: imageProvider),
+        );
+      },
+    );
   }
 
   @override
@@ -85,19 +167,21 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
         '/plant': (context) => PlantInfoScreen(
           plantDbId: ModalRoute.of(context)!.settings.arguments as String,
         ),
+        '/user': (context) =>
+            UserScreen(isDarkMode: _isDarkMode, onToggleTheme: _toggleTheme),
       },
       debugShowCheckedModeBanner: false,
       home: Scaffold(
         appBar: AppBar(
           title: Text(_titles[_selectedIndex]),
+          toolbarHeight: 60.0,
           actions: [
-            IconButton(
-              icon: Icon(_isDarkMode ? Icons.light_mode : Icons.dark_mode),
-              onPressed: _toggleTheme,
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: _buildAppBarAction(),
             ),
           ],
         ),
-        drawer: _selectedIndex == 0 ? const AppDrawer() : null,
         body: _pages[_selectedIndex],
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: _selectedIndex,
@@ -109,9 +193,11 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
               icon: Icon(Icons.local_florist),
               label: 'Garden',
             ),
-            BottomNavigationBarItem(icon: Icon(Icons.image), label: 'Gallery'),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.image),
+              label: 'Recognizer',
+            ),
             BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Chat'),
-            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
           ],
         ),
       ),

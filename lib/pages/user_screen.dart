@@ -10,7 +10,14 @@ import 'package:image/image.dart' as img;
 import 'package:plant_guardian/widgets/image_helper.dart';
 
 class UserScreen extends StatefulWidget {
-  const UserScreen({super.key});
+  final bool isDarkMode;
+  final VoidCallback onToggleTheme;
+
+  const UserScreen({
+    super.key,
+    required this.isDarkMode,
+    required this.onToggleTheme,
+  });
 
   @override
   State<UserScreen> createState() => _UserScreenState();
@@ -166,6 +173,15 @@ class _UserScreenState extends State<UserScreen> {
     }
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text("User Profile"),
+        actions: [
+          IconButton(
+            icon: Icon(widget.isDarkMode ? Icons.light_mode : Icons.dark_mode),
+            onPressed: widget.onToggleTheme,
+          ),
+        ],
+      ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: _firestore.collection("users").doc(user.uid).snapshots(),
         builder: (context, snapshot) {

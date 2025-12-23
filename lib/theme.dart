@@ -2,11 +2,20 @@ import 'package:flutter/material.dart';
 import 'colors.dart';
 
 class AppTheme {
+  // Shared Shape to keep code DRY (Don't Repeat Yourself)
+  static final _snackShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(12),
+  );
+
+  // Shared Margin for positioning
+  static const _snackMargin = EdgeInsets.fromLTRB(20, 0, 20, 30);
+
   static final ThemeData lightTheme = ThemeData(
+    useMaterial3: true,
     brightness: Brightness.light,
     scaffoldBackgroundColor: AppColors.lightBackground,
     primaryColor: AppColors.lightPrimary,
-    colorScheme: ColorScheme.light(
+    colorScheme: const ColorScheme.light(
       primary: AppColors.lightPrimary,
       secondary: AppColors.lightSecondary,
       surface: AppColors.lightSurface,
@@ -23,13 +32,22 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: AppColors.lightText, // Darker bar for light mode
+      contentTextStyle: const TextStyle(color: Colors.white, fontSize: 14),
+      shape: _snackShape,
+      elevation: 6,
+      insetPadding: _snackMargin,
+    ),
   );
 
   static final ThemeData darkTheme = ThemeData(
+    useMaterial3: true,
     brightness: Brightness.dark,
     scaffoldBackgroundColor: AppColors.darkBackground,
     primaryColor: AppColors.darkPrimary,
-    colorScheme: ColorScheme.dark(
+    colorScheme: const ColorScheme.dark(
       primary: AppColors.darkPrimary,
       secondary: AppColors.darkSecondary,
       surface: AppColors.darkSurface,
@@ -45,6 +63,15 @@ class AppTheme {
         foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor:
+          Colors.grey[800], // Slightly lighter bar for dark mode depth
+      contentTextStyle: const TextStyle(color: Colors.white, fontSize: 14),
+      shape: _snackShape,
+      elevation: 6,
+      insetPadding: _snackMargin, // 🚨 Use margin, not insetPadding
     ),
   );
 }

@@ -42,7 +42,7 @@ android {
     aaptOptions {
         noCompress("tflite")
         noCompress("lite")
-
+        noCompress("onnx")
     }
 }
 
@@ -52,4 +52,7 @@ flutter {
 
 dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.6.0"))
+    // implementation("com.google.gms:google-services:4.4.4")
 }
+
+apply(plugin = "com.google.gms.google-services")

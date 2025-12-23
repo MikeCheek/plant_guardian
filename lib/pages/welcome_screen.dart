@@ -1,7 +1,9 @@
 // import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:plant_guardian/widgets/garden_model.dart';
 // import 'package:shared_preferences/shared_preferences.dart';
 
 class WelcomeScreen extends StatefulWidget {
@@ -39,6 +41,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           };
           _checking = false; // <-- stop loading so UI can show email
         });
+
+        await preloadGardenInfo(user, FirebaseFirestore.instance);
 
         // Wait before navigating
         await Future.delayed(const Duration(seconds: 1));

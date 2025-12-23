@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:plant_guardian/pages/garden_editor_screen.dart';
 import 'package:plant_guardian/widgets/garden_model.dart';
 
 class GardenListScreen extends StatefulWidget {
@@ -61,15 +60,7 @@ class _GardenListScreenState extends State<GardenListScreen>
     final String newId = DateTime.now().millisecondsSinceEpoch.toString();
     final newGarden = Garden.createDefault(newId, user.uid);
 
-    _openGardenEditor(newGarden);
-  }
-
-  void _openGardenEditor(Garden garden) async {
-    await Navigator.of(context).push<Garden>(
-      MaterialPageRoute(
-        builder: (context) => GardenEditorScreen(garden: garden),
-      ),
-    );
+    openGardenEditor(context, newGarden);
   }
 
   // 🟢 NEW: Function to navigate to the NewPlantScreen
@@ -98,6 +89,7 @@ class _GardenListScreenState extends State<GardenListScreen>
         padding: const EdgeInsets.only(bottom: 10.0),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
             // Label
@@ -167,18 +159,12 @@ class _GardenListScreenState extends State<GardenListScreen>
     }
 
     return Scaffold(
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _firestore
-            .collection('users')
-            .doc(user.uid)
-            .collection('gardens')
-            .snapshots(),
+      body: StreamBuilder<List<Garden>>(
+        stream: gardensStream(user.uid, _firestore),
         builder: (context, snapshot) {
-          // ... (Existing StreamBuilder logic remains the same)
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          // ... (error handling and empty state)
 
           if (snapshot.hasError) {
             return Center(
@@ -186,63 +172,149 @@ class _GardenListScreenState extends State<GardenListScreen>
             );
           }
 
-          final gardens = snapshot.data!.docs.map((doc) {
-            return Garden.fromJson(doc.data() as Map<String, dynamic>);
-          }).toList();
+          final gardens = snapshot.data ?? [];
 
           if (gardens.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Text(
                     "You haven't created any gardens yet!",
                     style: TextStyle(fontSize: 18, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    onPressed: _createNewGarden,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Create First Garden'),
                   ),
                 ],
               ),
             );
           }
 
-          return ListView.builder(
-            padding: const EdgeInsets.only(top: 16, left: 16, right: 16),
+          return GridView.builder(
+            padding: const EdgeInsets.all(16),
+            // SliverGridDelegateWithFixedCrossAxisCount makes them squared
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2, // 2 items per row
+              crossAxisSpacing: 16, // Horizontal space between squares
+              mainAxisSpacing: 16, // Vertical space between squares
+              childAspectRatio: 1, // 1 means perfectly square (width = height)
+            ),
             itemCount: gardens.length,
             itemBuilder: (context, index) {
               final garden = gardens[index];
+
               return Dismissible(
                 key: Key(garden.id),
                 direction: DismissDirection.endToStart,
                 background: Container(
                   alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 20.0),
-                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.only(bottom: 20),
                   decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(4.0),
+                    color: Colors.redAccent,
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Icon(Icons.delete, color: Colors.white),
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Icon(Icons.delete_forever, color: Colors.white, size: 32),
+                      SizedBox(height: 4),
+                      Text(
+                        "RELEASE TO DELETE",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                onDismissed: (direction) {
-                  _deleteGarden(garden.id);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${garden.name} dismissed')),
+                confirmDismiss: (direction) async {
+                  return await showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: const Text("Confirm Deletion"),
+                        content: Text(
+                          "Are you sure you want to delete '${garden.name}'? This cannot be undone.",
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(
+                              context,
+                            ).pop(false), // Returns false
+                            child: const Text("CANCEL"),
+                          ),
+                          ElevatedButton(
+                            onPressed: () =>
+                                Navigator.of(context).pop(true), // Returns true
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                            ),
+                            child: const Text(
+                              "DELETE",
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   );
                 },
+
+                onDismissed: (_) {
+                  _deleteGarden(garden.id);
+                },
                 child: Card(
-                  elevation: 2,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    leading: const Icon(Icons.grass),
-                    title: Text(garden.name),
-                    subtitle: Text('${garden.plants.length} plants'),
-                    trailing: const Icon(Icons.edit),
-                    onTap: () => _openGardenEditor(garden),
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => openGardenEditor(context, garden),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Icon or Background Preview
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).primaryColor.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.yard_rounded,
+                            size: 40,
+                            color: Theme.of(context).primaryColor,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // Garden Name
+                        Text(
+                          garden.name,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        // Plant Count
+                        Text(
+                          '${garden.plants.length} plants',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );

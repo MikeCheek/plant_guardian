@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:plant_guardian/pages/garden_editor_screen.dart';
 
 // --- Global State for Available Plants (The in-app cache) ---
 // This map will store the available plants from the 'plants' collection:
@@ -165,11 +166,21 @@ class Garden {
           .toList(),
     );
   }
+
+  static fromMap(Map<String, dynamic> data, String id) {
+    return Garden(
+      id: id,
+      name: data['garden_name'] as String,
+      backgroundPattern: data['backgroundPattern'] as String,
+      uid: data['uid'] as String,
+      plants: (data['plants'] as List)
+          .map((p) => PlantInstance.fromJson(p as Map<String, dynamic>))
+          .toList(),
+    );
+  }
 }
 
 // --- Data Fetching and Caching Logic ---
-
-// 🚨 MODIFIED: Fetches all plants and populates the global cache
 Future<void> fetchAndCacheAvailablePlants(FirebaseFirestore firestore) async {
   if (_globalPlantsDB.isNotEmpty) {
     // Already fetched, return early
@@ -258,4 +269,86 @@ Future<void> deleteGarden(
       context,
     ).showSnackBar(const SnackBar(content: Text('Failed to delete garden.')));
   }
+}
+
+Future<void> preloadGardenInfo(User? user, FirebaseFirestore firestore) async {
+  if (user == null) return;
+
+  try {
+    print('Preloading garden information...');
+
+    // Preload all available plants
+    await fetchAndCacheAvailablePlants(firestore);
+
+    // Preload user's gardens
+    await firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('gardens')
+        .get();
+
+    print('Garden information preloaded successfully.');
+  } catch (e) {
+    print('Error preloading garden information: $e');
+  }
+}
+
+PlantDB? getPlantByName(String name) {
+  if (name.isEmpty) return null;
+
+  // 1. Sanitize the search term: lowercase, trim, and replace underscores/dashes with spaces
+  final cleanSearchName = name.toLowerCase().trim().replaceAll(
+    RegExp(r'[_-]'),
+    ' ',
+  );
+
+  // 2. Try Exact Match first (it's the most accurate)
+  for (var plant in globalPlantsDB.values) {
+    final cleanPlantName = plant.name.toLowerCase().trim().replaceAll(
+      RegExp(r'[_-]'),
+      ' ',
+    );
+
+    if (cleanPlantName == cleanSearchName) {
+      return plant;
+    }
+  }
+
+  // 3. FALLBACK: Fuzzy/Partial Match
+  // This helps if the AI says "Tomato Bacterial Spot" but your DB only has "Tomato"
+  for (var plant in globalPlantsDB.values) {
+    final cleanPlantName = plant.name.toLowerCase().trim().replaceAll(
+      RegExp(r'[_-]'),
+      ' ',
+    );
+
+    if (cleanSearchName.contains(cleanPlantName) ||
+        cleanPlantName.contains(cleanSearchName)) {
+      debugPrint("Fuzzy match found: AI: $name -> DB: ${plant.name}");
+      return plant;
+    }
+  }
+
+  debugPrint("No match found in DB for: $name");
+  return null;
+}
+
+Stream<List<Garden>> gardensStream(
+  String userId,
+  FirebaseFirestore firestore,
+) async* {
+  yield* firestore
+      .collection('users')
+      .doc(userId)
+      .collection('gardens')
+      .snapshots()
+      .map((snapshot) {
+        return snapshot.docs.map((doc) => Garden.fromJson(doc.data())).toList();
+      });
+}
+
+void openGardenEditor(BuildContext context, Garden garden) async {
+  await Navigator.of(context).push<Garden>(
+    MaterialPageRoute(builder: (context) => GardenEditorScreen(garden: garden)),
+  );
 }
