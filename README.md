@@ -2,6 +2,9 @@
 
 An AI/ML powered plant monitoring and care application built with Flutter.
 
+At [Plant Agent Repo](https://github.com/MikeCheek/plant-agent) there's the code for the AI agent backend using Hugging Face's smolagents library.
+At [Plant DB Bot Repo](https://github.com/MikeCheek/plant-db-bot) there's the code for expanding the plant database in a telegram bot.
+
 _Disclaimer: This project is currently in its early stages of development. Features and functionalities are subject to change._
 
 ## Features
