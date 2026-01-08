@@ -156,9 +156,9 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
                                         const Icon(Icons.local_florist),
                                   ),
                                 ),
-                                title: Text(plantDb.name),
+                                title: Text(plantDb.name.split('(')[0].trim()),
                                 subtitle: Text(
-                                  plantDb.exposition,
+                                  plantDb.description,
                                   style: const TextStyle(fontSize: 12),
                                 ),
                                 onTap: () {
@@ -253,7 +253,6 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
       return const Icon(Icons.error, color: Colors.red);
     }
 
-    // 💥 FIX: Use the pre-decoded bytes directly from the PlantDB object 💥
     return Image.memory(
       plantDb.decodedImageBytes, // Now using Uint8List directly
       width: 50 * plant.scale,
@@ -269,7 +268,6 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        // ... (AppBar content - no changes)
         title: TextFormField(
           initialValue: _currentGarden.name,
           onChanged: (newName) => _currentGarden.name = newName,
@@ -294,7 +292,6 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
         ],
       ),
 
-      // 🚨 FIX 3: Wrap the main body in FutureBuilder to wait for plants cache
       body: FutureBuilder<void>(
         future: _plantsFuture,
         builder: (context, snapshot) {
@@ -385,9 +382,9 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
                                       plant,
                                     ), // Use the image builder
                                     Text(
-                                      plantDb.name,
+                                      plantDb.name.split('(')[0].trim(),
                                       style: TextStyle(
-                                        fontSize: 5 * plant.scale,
+                                        fontSize: 4 * plant.scale,
                                         fontWeight: FontWeight.bold,
                                         color: isSelected
                                             ? Colors.blueAccent
@@ -398,9 +395,6 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
                                             blurRadius: 2,
                                           ),
                                         ],
-
-                                        // make it not going outside the image
-                                        // going to new line when needed
                                         overflow: TextOverflow.fade,
                                       ),
                                       textAlign: TextAlign.center,

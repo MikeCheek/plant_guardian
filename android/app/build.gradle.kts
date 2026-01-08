@@ -29,6 +29,11 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        ndk {
+            // Includes support for physical phones and emulators
+            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86_64"))
+        }
     }
 
     buildTypes {
@@ -43,6 +48,14 @@ android {
         noCompress("tflite")
         noCompress("lite")
         noCompress("onnx")
+    }
+
+    packaging {
+        resources {
+            pickFirst("lib/arm64-v8a/libonnxruntime.so")
+            pickFirst("lib/armeabi-v7a/libonnxruntime.so")
+            pickFirst("lib/x86_64/libonnxruntime.so")
+        }
     }
 }
 

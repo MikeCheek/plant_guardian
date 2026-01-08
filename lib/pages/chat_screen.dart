@@ -14,48 +14,41 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final List<Map<String, String>> _messages = [];
   final OnnxInferenceLLM _agent = OnnxInferenceLLM();
-  bool _isLoading = false;
-  String _currentBotText = ''; // for typing effect
 
+  bool _isLoading = false; // Tracks if AI is currently generating
+  bool _isIsolateReady = false; // Tracks if the Isolate & Model are loaded
+
+  final ValueNotifier<String> _liveResponse = ValueNotifier<String>('');
   final ScrollController _scrollController = ScrollController();
-
-  void _scrollToBottom({
-    Duration duration = const Duration(milliseconds: 250),
-  }) {
-    // ensure layout is complete before trying to scroll
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
-      final bottom = _scrollController.position.maxScrollExtent;
-      try {
-        _scrollController.animateTo(
-          bottom,
-          duration: duration,
-          curve: Curves.easeOut,
-        );
-      } catch (_) {
-        // fallback if animateTo fails for any reason
-        _scrollController.jumpTo(bottom);
-      }
-    });
-  }
 
   @override
   void initState() {
     super.initState();
-    _agent.init();
+    _initializeLLM(); // Start the heavy lifting immediately
+  }
 
+  Future<void> _initializeLLM() async {
+    try {
+      await _agent.init();
+      setState(() {
+        _isIsolateReady = true;
+      });
+    } catch (e) {
+      debugPrint("Init Error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error initializing AI model: $e")),
+      );
+    }
+  }
+
+  void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _agent.uiContext = context;
+      if (!_scrollController.hasClients) return;
+      // Use jumpTo during active streaming for maximum performance
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
     });
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  /// Sends the user message and streams the AI’s response with typing effect.
   void _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isLoading) return;
@@ -69,46 +62,49 @@ class _ChatScreenState extends State<ChatScreen> {
     await _agent.ask(
       text,
       onThinking: (status) {
-        setState(() {
-          _currentBotText = status;
-          _scrollToBottom();
-        });
+        _liveResponse.value = status; // Update notifier
+        _scrollToBottom();
       },
       onPartialResponse: (partial) {
-        setState(() {
-          _currentBotText = partial;
-        });
+        _liveResponse.value = partial; // Update notifier (No setState here!)
         _scrollToBottom();
       },
       onCompleted: (finalText) {
         setState(() {
           _messages.add({'role': 'bot', 'content': finalText});
+          _liveResponse.value = 'Sorry, I did not get that.';
           _isLoading = false;
-          _currentBotText = '';
-          _scrollToBottom();
         });
-      },
-      onError: (error) {
-        setState(() {
-          _messages.add({'role': 'bot', 'content': error});
-          _isLoading = false;
-          _currentBotText = '';
-          _scrollToBottom();
-        });
+        _scrollToBottom();
       },
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    // If the background thread isn't ready, show the spinner
+    if (!_isIsolateReady) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text("Starting AI Engine..."),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: Column(
         children: [
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
-              itemCount:
-                  _messages.length + (_currentBotText.isNotEmpty ? 1 : 0),
+              itemCount: _messages.length + 1,
               itemBuilder: (ctx, i) {
                 if (i < _messages.length) {
                   final msg = _messages[i];
@@ -117,11 +113,17 @@ class _ChatScreenState extends State<ChatScreen> {
                     isUser: msg['role'] == 'user',
                   );
                 } else {
-                  // The "thinking" or typing message being built live
-                  return MessageBubble(
-                    text: _currentBotText,
-                    isUser: false,
-                    isTyping: true, // optional param if you animate cursor
+                  return ValueListenableBuilder<String>(
+                    valueListenable: _liveResponse,
+                    builder: (context, text, _) {
+                      if (text.isEmpty && !_isLoading)
+                        return const SizedBox.shrink();
+                      return MessageBubble(
+                        text: text,
+                        isUser: false,
+                        isTyping: true,
+                      );
+                    },
                   );
                 }
               },

@@ -6,9 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:plant_guardian/pages/garden_list_screen.dart';
 import 'package:plant_guardian/pages/google_sign_in_screen.dart';
 import 'package:plant_guardian/pages/home_screen.dart';
-import 'package:plant_guardian/pages/image_classifier_live_screen.dart';
+// import 'package:plant_guardian/pages/image_classifier_live_screen.dart';
 import 'package:plant_guardian/pages/image_classifier_screen.dart';
-import 'package:plant_guardian/pages/chat_screen.dart';
+import 'package:plant_guardian/pages/chat_screen_online.dart';
 import 'package:plant_guardian/pages/login_screen.dart';
 import 'package:plant_guardian/pages/new_plant_screen.dart';
 import 'package:plant_guardian/pages/plant_info_screen.dart';
@@ -17,7 +17,6 @@ import 'package:plant_guardian/pages/user_screen.dart';
 
 import '../pages/welcome_screen.dart';
 import '../theme.dart';
-import 'drawer.dart';
 
 class MyAppScaffold extends StatefulWidget {
   const MyAppScaffold({Key? key}) : super(key: key);
@@ -28,20 +27,20 @@ class MyAppScaffold extends StatefulWidget {
 
 class _MyAppScaffoldState extends State<MyAppScaffold> {
   int _selectedIndex = 0;
-  late bool _isDarkMode;
+  late bool _isDarkMode = true;
 
   final List<Widget> _pages = [
     const HomeScreen(),
     GardenListScreen(),
     ImageClassifierScreen(),
-    const ChatScreen(),
+    const ChatScreenOnline(),
   ];
 
   final List<String> _titles = [
     'Plant Guardian',
     'Garden',
     'Image Classifier',
-    '🤖 GuardAI 🪴',
+    '🤖 GreenThumb AI',
   ];
 
   @override
@@ -174,6 +173,7 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
       home: Scaffold(
         appBar: AppBar(
           title: Text(_titles[_selectedIndex]),
+          automaticallyImplyLeading: false,
           toolbarHeight: 60.0,
           actions: [
             Padding(

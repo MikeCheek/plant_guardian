@@ -160,6 +160,12 @@ class _UserScreenState extends State<UserScreen> {
     setState(() => _saving = false);
   }
 
+  void _signOut() async {
+    await _auth.signOut();
+    if (!mounted) return;
+    Navigator.of(context).pushReplacementNamed('/welcome');
+  }
+
   // --- Build Method ---
 
   @override
@@ -302,6 +308,13 @@ class _UserScreenState extends State<UserScreen> {
 
                     // Add space at the bottom to avoid FAB overlap
                     const SizedBox(height: 80),
+                    ButtonTheme(
+                      child: ElevatedButton(
+                        onPressed: _signOut,
+                        child: const Text("Sign Out"),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),

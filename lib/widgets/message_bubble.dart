@@ -1,7 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Required for Clipboard
 import 'package:url_launcher/url_launcher.dart';
-
 import 'fadeslide_bubble.dart';
 
 class MessageBubble extends StatelessWidget {
@@ -16,47 +16,46 @@ class MessageBubble extends StatelessWidget {
     this.isTyping = false,
   });
 
+  void _copyToClipboard(BuildContext context) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Copied to clipboard'),
+        duration: Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final content = text.replaceAll('\\n', '\n');
 
-    // Base text style used for normal text (respects theme & user)
     final baseStyle =
         theme.textTheme.bodyMedium?.copyWith(
           color: isUser
-              ? Colors.black
+              ? Colors.black87
               : (theme.brightness == Brightness.dark
                     ? Colors.white
-                    : Colors.black),
+                    : Colors.black87),
           height: 1.4,
+          fontSize: 15,
         ) ??
-        TextStyle(
-          color: isUser
-              ? Colors.black
-              : (theme.brightness == Brightness.dark
-                    ? Colors.white
-                    : Colors.black),
-          height: 1.4,
-        );
+        const TextStyle(height: 1.4, fontSize: 15);
 
-    // Style for links
     final linkStyle = baseStyle.copyWith(
-      color: Colors.blue,
+      color: theme.colorScheme.primary,
       decoration: TextDecoration.underline,
     );
 
-    // Regex for inline elements: markdown link [label](url) or bold **text**
     final inlinePattern = RegExp(
       r'\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|\*\*([^*]+)\*\*',
     );
-
-    // Regex to detect list items like "*  something" or "- something" or "+ something"
     final listItemPattern = RegExp(r'^\s*([*\-\+])\s*(.*)$');
 
-    List<TextSpan> spans = [];
+    List<InlineSpan> spans = [];
 
-    // Process content line by line so we can format lists nicely
     final lines = content.split('\n');
     for (var li = 0; li < lines.length; li++) {
       final line = lines[li];
@@ -65,11 +64,14 @@ class MessageBubble extends StatelessWidget {
       final listMatch = listItemPattern.firstMatch(line);
       if (listMatch != null) {
         segment = listMatch.group(2) ?? '';
-        // Add bullet prefix
-        spans.add(TextSpan(text: '• ', style: baseStyle));
+        spans.add(
+          TextSpan(
+            text: ' • ',
+            style: baseStyle.copyWith(fontWeight: FontWeight.bold),
+          ),
+        );
       }
 
-      // Parse inline elements within the segment
       int lastEnd = 0;
       for (final match in inlinePattern.allMatches(segment)) {
         if (match.start > lastEnd) {
@@ -82,7 +84,6 @@ class MessageBubble extends StatelessWidget {
         }
 
         if (match.group(1) != null && match.group(2) != null) {
-          // It's a link: [label](url)
           final label = match.group(1)!;
           final url = match.group(2)!;
           spans.add(
@@ -99,7 +100,6 @@ class MessageBubble extends StatelessWidget {
             ),
           );
         } else if (match.group(3) != null) {
-          // Bold text: **text**
           final boldText = match.group(3)!;
           spans.add(
             TextSpan(
@@ -108,7 +108,6 @@ class MessageBubble extends StatelessWidget {
             ),
           );
         }
-
         lastEnd = match.end;
       }
 
@@ -116,65 +115,89 @@ class MessageBubble extends StatelessWidget {
         spans.add(TextSpan(text: segment.substring(lastEnd), style: baseStyle));
       }
 
-      // Add newline for all lines except the last one
       if (li != lines.length - 1) {
         spans.add(TextSpan(text: '\n', style: baseStyle));
       }
     }
 
+    // 1. ADD CURSOR AS A SPAN (Moves with text)
+    if (isTyping) {
+      spans.add(
+        WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: BlinkingCursor(
+            color: isUser ? Colors.black54 : theme.colorScheme.primary,
+          ),
+        ),
+      );
+    }
+
     return FadeSlideBubble(
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
         alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-          constraints: const BoxConstraints(maxWidth: 320),
-          decoration: BoxDecoration(
-            color: isUser
-                ? Colors.green.shade300
-                : theme.brightness == Brightness.dark
-                ? Colors.grey.shade800
-                : Colors.grey.shade300,
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(14),
-              topRight: const Radius.circular(14),
-              bottomLeft: isUser
-                  ? const Radius.circular(14)
-                  : const Radius.circular(0),
-              bottomRight: isUser
-                  ? const Radius.circular(0)
-                  : const Radius.circular(14),
-            ),
-          ),
-          child: Stack(
-            alignment: Alignment.bottomLeft,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: RichText(
-                  text: TextSpan(style: baseStyle, children: spans),
+        child: Column(
+          crossAxisAlignment: isUser
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          children: [
+            GestureDetector(
+              onLongPress: () => _copyToClipboard(context),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 16,
                 ),
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.75,
+                ),
+                decoration: BoxDecoration(
+                  color: isUser
+                      ? theme.colorScheme.primaryContainer
+                      : theme.colorScheme.surfaceVariant,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(18),
+                    topRight: const Radius.circular(18),
+                    bottomLeft: Radius.circular(isUser ? 18 : 2),
+                    bottomRight: Radius.circular(isUser ? 2 : 18),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 5,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: RichText(text: TextSpan(children: spans)),
               ),
-              if (isTyping)
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: BlinkingCursor(
-                    color: isUser ? Colors.black : Colors.blue,
+            ),
+            // 2. OPTIONAL: SMALL COPY BUTTON FOR BOT RESPONSES
+            if (!isUser && !isTyping && text.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, left: 4),
+                child: InkWell(
+                  onTap: () => _copyToClipboard(context),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4.0),
+                    child: Icon(
+                      Icons.copy_rounded,
+                      size: 14,
+                      color: theme.hintColor,
+                    ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// A small blinking cursor widget to simulate “typing” animation.
 class BlinkingCursor extends StatefulWidget {
   final Color color;
-
   const BlinkingCursor({super.key, required this.color});
 
   @override
@@ -185,7 +208,7 @@ class _BlinkingCursorState extends State<BlinkingCursor>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 600),
+    duration: const Duration(milliseconds: 500),
   )..repeat(reverse: true);
 
   @override
@@ -198,9 +221,11 @@ class _BlinkingCursorState extends State<BlinkingCursor>
   Widget build(BuildContext context) {
     return FadeTransition(
       opacity: _controller,
-      child: Text(
-        '|',
-        style: TextStyle(color: widget.color, fontWeight: FontWeight.bold),
+      child: Container(
+        width: 2,
+        height: 16,
+        margin: const EdgeInsets.only(left: 2),
+        color: widget.color,
       ),
     );
   }

@@ -48,10 +48,10 @@ class _SplashScreenState extends State<SplashScreen> {
         "status": "Initializing TFLite...",
         "action": () async => await TFLiteHelper.init(),
       },
-      {
-        "status": "Initializing ONNX LLM...",
-        "action": () async => await OnnxLLMHelper.init(),
-      },
+      // {
+      //   "status": "Initializing ONNX LLM...",
+      //   "action": () async => await OnnxLLMHelper.init(),
+      // },
     ];
 
     for (final entry in steps.asMap().entries) {

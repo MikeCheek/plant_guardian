@@ -497,7 +497,7 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
           ),
         ),
         Text(
-          "Take a photo of a leaf or flower to begin identification.",
+          "Take a photo of a leaf or your full plant to begin identification.",
           textAlign: TextAlign.center,
           style: TextStyle(color: Colors.grey[400]),
         ),
