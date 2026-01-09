@@ -6,6 +6,8 @@ An AI/ML powered plant monitoring and care application built with Flutter.
 
 - At [Plant DB Bot Repo](https://github.com/MikeCheek/plant-db-bot) there's the code for expanding the plant database in a telegram bot.
 
+- At [Kaggle Notebook](https://www.kaggle.com/code/michelepulvirenti/house-plant-recognition-using-efficientnetv2b0) there's the notebook used to train the plant species classifier.
+
 _Disclaimer: This project is currently in its early stages of development. Features and functionalities are subject to change._
 
 ## Features
@@ -14,10 +16,10 @@ _Disclaimer: This project is currently in its early stages of development. Featu
 - [x] ML plant classifier (TensorFlow Lite model)
 - [x] Live camera classifier (real-time predictions)
 - [x] AI agent chatbot (GuardAI)
-- [ ] User authentication (accounts, secure sign-in)
+- [x] User authentication (accounts, secure sign-in)
 - [ ] ML plant disease classifier (detect diseases & severity)
-- [ ] Working AI Agent with tools (planner, web/tool access)
-- [ ] My Garden management (add/remove plants, metadata)
+- [x] Working AI Agent with tools (planner, web/tool access)
+- [x] My Garden management (add/remove plants, metadata)
 - [ ] Notification reminders (watering, fertilizing, care tips)
 - [ ] Garbage recycling helper (identify & sort waste)
 
@@ -37,15 +39,32 @@ The notebook used to train the model can be found on my kaggle profile [here](ht
 
 |   Metric | Training | Validation |
 | -------: | -------: | ---------: |
-| Accuracy |   0.9379 |     0.9165 |
-|     Loss |   0.1965 |     0.3731 |
+| Accuracy |      94% |        92% |
+|     Loss |      20% |        37% |
 
-Below are some example predictions made by the app:
+### Below are some example predictions made by the app:
 
 <div style="display:flex; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
   <figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
-    <img src="screenshots/dumbcane.jpg" alt="Ficus elastica prediction" style="width:180px; height:auto; border-radius:6px;">
+    <img src="screenshots/poinsettia.jpg" alt="Poinsettia prediction" style="width:180px; height:auto; border-radius:6px;">
   </figure>
+
+  <figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
+    <img src="screenshots/sanseviera.jpg" alt="Sansevieria prediction" style="width:180px; height:auto; border-radius:6px;">
+  </figure>
+
+  <figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
+    <img src="screenshots/schefflera.jpg" alt="Schefflera prediction" style="width:180px; height:auto; border-radius:6px;">
+  </figure>
+
+  <figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
+    <img src="screenshots/aloevera.jpg" alt="Aloe Vera prediction" style="width:180px; height:auto; border-radius:6px;">
+  </figure>
+</div>
+
+Here there are more example made with old UI design:
+
+<div style="display:flex; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
 
   <figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
     <img src="screenshots/monsteradeliciosa.jpg" alt="Monstera deliciosa prediction" style="width:180px; height:auto; border-radius:6px;">
@@ -55,19 +74,28 @@ Below are some example predictions made by the app:
     <img src="screenshots/orchid.jpg" alt="Orchid prediction" style="width:180px; height:auto; border-radius:6px;">
   </figure>
 
-  <figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
-    <img src="screenshots/sanseviera.jpg" alt="Sansevieria prediction" style="width:180px; height:auto; border-radius:6px;">
-  </figure>
-
    <figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
     <img src="screenshots/ficuselastica.jpg" alt="Ficus elastica prediction" style="width:180px; height:auto; border-radius:6px;">
   </figure>
-</div>
 
 ## GuardAI - AI Agent for Plant Care
 
 <figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
-    <img src="screenshots/guardai.jpg" alt="GuardAI prediction" style="width:180px; height:auto; border-radius:6px;">
+    <img src="screenshots/agentthinking.jpg" alt="GuardAI thinking" style="width:180px; height:auto; border-radius:6px;">
+  </figure>
+
+<figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
+    <img src="screenshots/agentanswer.jpg" alt="GuardAI response" style="width:180px; height:auto; border-radius:6px;">
+  </figure>
+
+## Garden Management
+
+<figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
+    <img src="screenshots/gardens.jpg" alt="My Gardens screen" style="width:180px; height:auto; border-radius:6px;">
+  </figure>
+
+<figure style="display:flex; flex-direction:column; align-items:center; margin:0;">
+    <img src="screenshots/garden.jpg" alt="Garden details screen" style="width:180px; height:auto; border-radius:6px;">
   </figure>
 
 ## Running the App
