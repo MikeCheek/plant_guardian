@@ -4,7 +4,7 @@ An AI/ML powered plant monitoring and care application built with Flutter.
 
 - At [Plant Agent Repo](https://github.com/MikeCheek/plant-agent) there's the code for the AI agent backend using Hugging Face's smolagents library.
 
-- At [Plant DB Bot Repo](https://github.com/MikeCheek/plant-db-bot) there's the code for expanding the plant database in a telegram bot.
+- At [Plant DB Bot Repo](https://github.com/MikeCheek/plant-db-bot) there's the code for expanding the plant database with the use of a telegram bot.
 
 - At [Kaggle Notebook](https://www.kaggle.com/code/michelepulvirenti/house-plant-recognition-using-efficientnetv2b0) there's the notebook used to train the plant species classifier.
 
