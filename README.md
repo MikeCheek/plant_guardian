@@ -10,6 +10,15 @@ An AI/ML powered plant monitoring and care application built with Flutter.
 
 _Disclaimer: This project is currently in its early stages of development. Features and functionalities are subject to change._
 
+## Why this project?
+
+I have always been passionate about nature and technology.
+This project combines both interests by leveraging AI and ML to help people care for their plants more effectively.
+
+The app aims to provide real-time plant identification, disease detection, and personalized care recommendations, making plant care easier and more accessible.
+
+Furthermore, it serves as a practical application of my skills in Flutter development and machine learning but also as a way to learn more about plant care and horticulture.
+
 ## Features
 
 - [x] Theme mode (light/dark)
