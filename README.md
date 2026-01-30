@@ -4,7 +4,7 @@ An AI/ML powered plant monitoring and care application built with Flutter.
 
 - At [Plant Agent Repo](https://github.com/MikeCheek/plant-agent) there's the code for the AI agent backend using Hugging Face's smolagents library.
 
-- At [Plant DB Bot Repo](https://github.com/MikeCheek/plant-db-bot) there's the code for expanding the plant database in a telegram bot.
+- At [Plant DB Bot Repo](https://github.com/MikeCheek/plant-db-bot) there's the code for expanding the plant database with the use of a telegram bot.
 
 - At [Kaggle Notebook](https://www.kaggle.com/code/michelepulvirenti/house-plant-recognition-using-efficientnetv2b0) there's the notebook used to train the plant species classifier.
 
@@ -12,9 +12,9 @@ _Disclaimer: This project is currently in its early stages of development. Featu
 
 ## Why this project?
 
-I have always been passionate about nature and technology.
-This project combines both interests by leveraging AI and ML to help people care for their plants more effectively.
+Let’s be honest, how many plants have you lost to missed watering, questionable soil choices, or planting them in a season they never stood a chance in?
 
+This project combines both interests by leveraging AI and ML to help people care for their plants more effectively.
 The app aims to provide real-time plant identification, disease detection, and personalized care recommendations, making plant care easier and more accessible.
 
 Furthermore, it serves as a practical application of my skills in Flutter development and machine learning but also as a way to learn more about plant care and horticulture.
