@@ -44,10 +44,10 @@ class _SplashScreenState extends State<SplashScreen> {
       //         .install();
       //   },
       // },
-      {
-        "status": "Initializing TFLite...",
-        "action": () async => await TFLiteHelper.init(),
-      },
+      // {
+      //   "status": "Initializing TFLite...",
+      //   "action": () async => await TFLiteHelper.init(),
+      // },
       // {
       //   "status": "Initializing ONNX LLM...",
       //   "action": () async => await OnnxLLMHelper.init(),

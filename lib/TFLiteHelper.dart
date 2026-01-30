@@ -6,40 +6,48 @@ import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
 
 class TFLiteHelper {
-  static late Interpreter _interpreter;
-  static bool _isInitialized = false;
+  late Interpreter _interpreter;
+  bool _isInitialized = false;
 
-  static const int imageSize = 256; // 224;
-  static const int numClasses = 47; //1001;
-  static const String modelFile = 'assets/houseplant_classifier_model.tflite';
-  static const String labelFile = 'assets/houseplant_classifier_labels.txt';
+  final int imageSize;
+  late int numClasses;
+  final String modelFile;
+  final String labelFile;
 
-  static late List<String> _labels;
-  static late Float32List _inputBuffer; // 1*224*224*3
-  static late Float32List _outputBuffer; // 1*numClasses
-  // static late TensorImage _tensorImage; // Uncomment if using tflite_flutter_helper
+  late List<String> _labels;
+  late Float32List _inputBuffer;
+  late Float32List _outputBuffer;
 
-  static Future<void> init() async {
+  // Constructor to pass specific model configurations
+  TFLiteHelper({
+    required this.modelFile,
+    required this.labelFile,
+    this.imageSize = 256,
+  });
+
+  Future<void> init() async {
     try {
-      print("🔹 Loading TFLite model...");
+      print("🔹 Loading TFLite model: $modelFile");
       _interpreter = await Interpreter.fromAsset(modelFile);
       _labels = (await rootBundle.loadString(labelFile)).trim().split('\n');
+
+      numClasses = _labels.length;
+
+      // Initialize buffers specific to this instance's size/classes
       _inputBuffer = Float32List(imageSize * imageSize * 3);
       _outputBuffer = Float32List(numClasses);
+
       _isInitialized = true;
-      print("✅ Model loaded successfully!");
+      print("✅ Model $modelFile loaded successfully!");
     } catch (e, stack) {
       print("❌ Failed to load model: $e");
       print(stack);
     }
   }
 
-  static Interpreter get interpreter {
-    if (!_isInitialized) throw Exception("Model not initialized");
-    return _interpreter;
-  }
+  bool get isInitialized => _isInitialized;
 
-  static void preprocessImage(File imageFile) {
+  void preprocessImage(File imageFile) {
     final image = img.decodeImage(imageFile.readAsBytesSync())!;
     final resizedImage = img.copyResize(
       image,
@@ -58,7 +66,7 @@ class TFLiteHelper {
     }
   }
 
-  static Future<(String, double)> classifyImage(File imageFile) async {
+  Future<(String, double)> classifyImage(File imageFile) async {
     if (!_isInitialized) throw Exception("Model not initialized");
 
     preprocessImage(imageFile);
@@ -81,23 +89,19 @@ class TFLiteHelper {
     return (_labels[maxIndex], maxScore);
   }
 
-  static void preprocessCameraImage(
-    CameraImage image, {
-    int inputW = imageSize,
-    int inputH = imageSize,
-  }) {
+  void preprocessCameraImage(CameraImage image) {
     final yPlane = image.planes[0],
         uPlane = image.planes[1],
         vPlane = image.planes[2];
     final yRowStride = yPlane.bytesPerRow, uvRowStride = uPlane.bytesPerRow;
     final uvPixelStride = uPlane.bytesPerPixel!;
     int o = 0;
-    for (int y = 0; y < inputH; y++) {
-      final sy = (y * image.height / inputH).floor();
+    for (int y = 0; y < imageSize; y++) {
+      final sy = (y * image.height / imageSize).floor();
       final yBase = sy * yRowStride;
       final uvRow = (sy >> 1) * uvRowStride;
-      for (int x = 0; x < inputW; x++) {
-        final sx = (x * image.width / inputW).floor();
+      for (int x = 0; x < imageSize; x++) {
+        final sx = (x * image.width / imageSize).floor();
         final yIndex = yBase + sx;
         final uvCol = (sx >> 1) * uvPixelStride;
         final u = uPlane.bytes[uvRow + uvCol];
@@ -116,7 +120,7 @@ class TFLiteHelper {
     }
   }
 
-  static Future<(String, double)> classifyCameraImage(CameraImage image) async {
+  Future<(String, double)> classifyCameraImage(CameraImage image) async {
     if (!_isInitialized) throw Exception("Model not initialized");
 
     preprocessCameraImage(image);

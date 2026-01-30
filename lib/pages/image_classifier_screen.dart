@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:plant_guardian/pages/plant_info_screen.dart';
+import 'package:plant_guardian/widgets/plant_health_card.dart';
 import '../TFLiteHelper.dart';
 import 'package:plant_guardian/widgets/garden_model.dart';
 
@@ -19,11 +20,27 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
   File? _image;
   String _result = '';
   double? _score;
+
+  // New variables for Disease Classification
+  String _diseaseResult = '';
+  double? _diseaseScore;
+
   bool _isLoading = false;
 
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
   late Future<void> _plantsFuture;
+
+  final speciesClassifier = TFLiteHelper(
+    modelFile: 'assets/houseplant_classifier_model.tflite',
+    labelFile: 'assets/houseplant_classifier_labels.txt',
+  );
+
+  // Initialize Disease Classifier
+  final diseaseClassifier = TFLiteHelper(
+    modelFile: 'assets/houseplant_disease_model.tflite',
+    labelFile: 'assets/houseplant_disease_labels.txt',
+  );
 
   @override
   void initState() {
@@ -31,27 +48,33 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
     _plantsFuture = fetchAndCacheAvailablePlants(_firestore);
   }
 
-  Future<(String, double)> _classifyImage(File image) async {
-    try {
-      return await TFLiteHelper.classifyImage(image);
-    } catch (e) {
-      throw Exception("Classification failed: $e");
-    }
-  }
-
+  // Modified to handle both classifications
   Future<void> _processImage(XFile pickedFile) async {
     setState(() {
       _image = File(pickedFile.path);
       _isLoading = true;
       _result = '';
       _score = null;
+      _diseaseResult = '';
+      _diseaseScore = null;
     });
 
     try {
-      final (result, score) = await _classifyImage(_image!);
+      // Initialize if needed
+      if (!speciesClassifier.isInitialized) await speciesClassifier.init();
+      if (!diseaseClassifier.isInitialized) await diseaseClassifier.init();
+
+      // Run both models
+      final speciesTask = speciesClassifier.classifyImage(_image!);
+      final diseaseTask = diseaseClassifier.classifyImage(_image!);
+
+      final results = await Future.wait([speciesTask, diseaseTask]);
+
       setState(() {
-        _result = result;
-        _score = score;
+        _result = results[0].$1;
+        _score = results[0].$2;
+        _diseaseResult = results[1].$1;
+        _diseaseScore = results[1].$2;
         _isLoading = false;
       });
     } catch (e) {
@@ -121,51 +144,25 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
     }
   }
 
-  // 🪴 Logic to add the identified plant to the user's first garden
   void _confirmAddToGarden(String plantName) async {
     final plantDb = getPlantByName(plantName);
-
     if (plantDb == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Cannot add: Plant not in our database.")),
       );
       return;
     }
-
-    // showDialog(
-    //   context: context,
-    //   builder: (context) => AlertDialog(
-    //     title: const Text("Add to Garden?"),
-    //     content: Text("Add this $plantName to your digital garden layout?"),
-    //     actions: [
-    //       TextButton(
-    //         onPressed: () => Navigator.pop(context),
-    //         child: const Text("CANCEL"),
-    //       ),
-    //       ElevatedButton(
-    //         onPressed: () async {
-    //           Navigator.pop(context); // Close dialog
-    //           await _executeAddToGarden(plantDb);
-    //         },
-    //         child: const Text("ADD NOW"),
-    //       ),
-    //     ],
-    //   ),
-    // );
     await _executeAddToGarden(plantDb);
   }
 
   Future<void> _executeAddToGarden(PlantDB plantDb) async {
     final user = _auth.currentUser;
     if (user == null) return;
-
     setState(() => _isLoading = true);
 
     try {
       final query = gardensStream(user.uid, _firestore);
-
       setState(() => _isLoading = false);
-
       final List<Garden> userGardens = await query.first;
 
       if (userGardens.isEmpty) {
@@ -173,7 +170,6 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
         return;
       }
 
-      // 2. Let the user select a garden
       final Garden? selectedGarden = await showDialog<Garden>(
         context: context,
         builder: (context) => AlertDialog(
@@ -197,10 +193,8 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
         ),
       );
 
-      // 3. If a garden was selected, add the plant
       if (selectedGarden != null) {
         setState(() => _isLoading = true);
-
         final newInstance = PlantInstance(
           id: DateTime.now().microsecondsSinceEpoch.toString(),
           plantDbId: plantDb.id,
@@ -210,13 +204,8 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
           ),
           scale: 1.5,
         );
-
         selectedGarden.plants.add(newInstance);
-
-        // 4. Use your defined saveGarden function
-        // Note: saveGarden already handles the Firestore path and Navigator.pop(context)
         await saveGarden(user, selectedGarden, _firestore, context);
-
         openGardenEditor(context, selectedGarden);
       }
     } catch (e) {
@@ -227,7 +216,6 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
     }
   }
 
-  // Helper for when no gardens exist
   void _showNoGardenDialog() {
     showDialog(
       context: context,
@@ -255,12 +243,10 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-
           return Stack(
             children: [
               Column(
                 children: [
-                  // Header Section with Thumbnail
                   Padding(
                     padding: const EdgeInsets.all(20.0),
                     child: Row(
@@ -293,7 +279,6 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
                       ],
                     ),
                   ),
-
                   if (_isLoading)
                     const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 20),
@@ -301,8 +286,6 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
                         borderRadius: BorderRadius.all(Radius.circular(10)),
                       ),
                     ),
-
-                  // Main Result Content
                   Expanded(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -315,20 +298,31 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showImageSourceDialog(context),
-        backgroundColor: Colors.green[800],
-        label: const Text(
-          'Identify New Plant',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        icon: const Icon(Icons.camera_alt, color: Colors.white),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // 2. Identify New Plant Button
+          FloatingActionButton.extended(
+            heroTag: 'identify_btn',
+            onPressed: () => _showImageSourceDialog(context),
+            backgroundColor: Colors.green[800],
+            label: const Text(
+              'Identify',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            icon: const Icon(Icons.camera_alt, color: Colors.white),
+          ),
+        ],
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      // Set location to the end (right side)
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
-  // 🖼️ Smaller Thumbnail UI
   Widget _buildImageThumbnail() {
     return Container(
       width: 100,
@@ -364,10 +358,7 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
         ),
       );
     }
-
-    if (_score == null) {
-      return _buildEmptyState();
-    }
+    if (_score == null) return _buildEmptyState();
 
     final double percentage = _score! * 100;
     Color statusColor = _getStatusColor(percentage);
@@ -384,7 +375,6 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
           ),
           child: Column(
             children: [
-              // Confidence Circle
               Stack(
                 alignment: Alignment.center,
                 children: [
@@ -409,8 +399,6 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
                 ],
               ),
               const SizedBox(height: 20),
-
-              // Plant Name with "Info" Trigger
               InkWell(
                 onTap: () => _navigateToDetails(_result),
                 child: Column(
@@ -454,6 +442,14 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
             ],
           ),
         ),
+
+        // Simplified and updated block
+        if (_diseaseScore != null && _diseaseScore! > 0.5)
+          PlantHealthCard(
+            diseaseResult: _diseaseResult,
+            confidence: _diseaseScore!,
+          ),
+
         const SizedBox(height: 30),
         if (percentage >= 50)
           SizedBox(
@@ -475,11 +471,10 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
               ),
             ),
           ),
+        const SizedBox(height: 100),
       ],
     );
   }
-
-  // --- Helper Methods ---
 
   Widget _buildEmptyState() {
     return Column(
@@ -513,15 +508,12 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
   }
 
   String _getMessage(double percentage) {
-    if (percentage >= 90) {
+    if (percentage >= 90)
       return "High match! I am confident about this species.";
-    }
-    if (percentage >= 70) {
+    if (percentage >= 70)
       return "Likely a match. Check the details to confirm.";
-    }
-    if (percentage >= 50) {
+    if (percentage >= 50)
       return "Low confidence. Ensure the photo is clear and well-lit.";
-    }
     return "Are you sure this is a plant?";
   }
 }
