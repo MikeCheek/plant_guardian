@@ -20,6 +20,16 @@ class _GardenListScreenState extends State<GardenListScreen>
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
 
+  bool _isAnyPlantThirsty(List<PlantInstance> plants) {
+    for (var plant in plants) {
+      bool thirsty = isPlantThirsty(plant);
+      if (thirsty) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -89,7 +99,7 @@ class _GardenListScreenState extends State<GardenListScreen>
         padding: const EdgeInsets.only(bottom: 10.0),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.end,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
             // Label
@@ -201,6 +211,7 @@ class _GardenListScreenState extends State<GardenListScreen>
             itemCount: gardens.length,
             itemBuilder: (context, index) {
               final garden = gardens[index];
+              final bool hasThirstyPlants = _isAnyPlantThirsty(garden.plants);
 
               return Dismissible(
                 key: Key(garden.id),
@@ -272,49 +283,70 @@ class _GardenListScreenState extends State<GardenListScreen>
                     borderRadius: BorderRadius.circular(16),
                   ),
                   clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: () => openGardenEditor(context, garden),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Icon or Background Preview
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Theme.of(
-                              context,
-                            ).primaryColor.withOpacity(0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.yard_rounded,
-                            size: 40,
-                            color: Theme.of(context).primaryColor,
+                  child: Stack(
+                    children: [
+                      InkWell(
+                        onTap: () => openGardenEditor(context, garden),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Icon or Background Preview
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Theme.of(
+                                  context,
+                                ).primaryColor.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.yard_rounded,
+                                size: 40,
+                                color: Theme.of(context).primaryColor,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            // Garden Name
+                            Text(
+                              garden.name,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            // Plant Count
+                            Text(
+                              '${garden.plants.length} plants',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (hasThirstyPlants)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.water_drop, // The drop icon
+                              color: Colors.blue,
+                              size: 20,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        // Garden Name
-                        Text(
-                          garden.name,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        // Plant Count
-                        Text(
-                          '${garden.plants.length} plants',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
+                    ],
                   ),
                 ),
               );

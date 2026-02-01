@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 
 import 'package:plant_guardian/widgets/garden_model.dart';
+import 'package:plant_guardian/widgets/plant.dart';
 
 class GardenEditorScreen extends StatefulWidget {
   final Garden garden;
@@ -20,8 +21,8 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
 
   String? _selectedPlantId;
   double _baseScaleFactor = 1.0;
+  bool _isWateringMode = false;
 
-  // 🚨 MODIFIED: Replaced the Future for fetching with a Future that handles caching
   late Future<void> _plantsFuture;
 
   @override
@@ -29,17 +30,13 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
     super.initState();
     _currentGarden = widget.garden;
     _currentGarden.uid ??= _auth.currentUser?.uid;
-
-    // 🚨 FIX 1: Start fetching and caching the plant data immediately
     _plantsFuture = fetchAndCacheAvailablePlants(_firestore);
   }
 
-  // 🚨 MODIFIED: Helper to retrieve the PlantDB details from the cache
   PlantDB? _getPlantDB(String plantDbId) {
     return globalPlantsDB[plantDbId];
   }
 
-  // Helper function (left unchanged)
   PlantInstance? firstWhereOrNull(
     Iterable<PlantInstance> plants,
     bool Function(PlantInstance) test,
@@ -88,7 +85,22 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
     });
   }
 
-  // 1. Adds a new plant to the garden
+  void _markAsWatered(PlantInstance plant) {
+    waterPlant(
+      _currentGarden.id,
+      plant.id,
+      _currentGarden.uid ?? _auth.currentUser?.uid ?? '',
+    );
+    setState(() {
+      plant.lastWatered = DateTime.now();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${_getPlantDB(plant.plantDbId)?.name} watered! 💧'),
+      ),
+    );
+  }
+
   void _addNewPlant(BuildContext context) {
     final availablePlants = globalPlantsDB.entries.toList();
 
@@ -99,22 +111,19 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
       return;
     }
 
-    // List for searching
     List<MapEntry<String, PlantDB>> filteredPlants = List.from(availablePlants);
 
     showDialog<PlantInstance>(
       context: context,
       builder: (context) => StatefulBuilder(
-        // Use StatefulBuilder to handle search filtering inside dialog
         builder: (context, setDialogState) {
           return AlertDialog(
             title: const Text('Select a Plant'),
             content: SizedBox(
               width: double.maxFinite,
-              height: 400, // Fixed height for the scrollable area
+              height: 400,
               child: Column(
                 children: [
-                  // Search Bar
                   TextField(
                     decoration: const InputDecoration(
                       hintText: 'Search plants...',
@@ -133,7 +142,6 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
                     },
                   ),
                   const SizedBox(height: 10),
-                  // Scrollable List
                   Expanded(
                     child: filteredPlants.isEmpty
                         ? const Center(child: Text("No plants found"))
@@ -205,16 +213,14 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
   }
 
   void _handleGlobalScale(ScaleUpdateDetails details) {
-    if (_selectedPlant == null) {
+    if (_selectedPlant == null || details.scale == 1.0) {
       return;
     }
 
-    if (details.scale != 1.0) {
-      setState(() {
-        double newScale = _baseScaleFactor * details.scale;
-        _selectedPlant!.scale = max(1.0, min(4.0, newScale));
-      });
-    }
+    setState(() {
+      double newScale = _baseScaleFactor * details.scale;
+      _selectedPlant!.scale = max(1.0, min(4.0, newScale));
+    });
   }
 
   void _deleteSelectedPlant() {
@@ -246,52 +252,18 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
     return Offset(clampedX, clampedY);
   }
 
-  Widget _buildPlantImage(PlantInstance plant) {
-    final plantDb = _getPlantDB(plant.plantDbId);
-
-    if (plantDb == null) {
-      return const Icon(Icons.error, color: Colors.red);
-    }
-
-    return Image.memory(
-      plantDb.decodedImageBytes, // Now using Uint8List directly
-      width: 50 * plant.scale,
-      height: 50 * plant.scale,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) => const Icon(Icons.error),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
 
     return Scaffold(
-      appBar: AppBar(
-        title: TextFormField(
-          initialValue: _currentGarden.name,
-          onChanged: (newName) => _currentGarden.name = newName,
-          style: const TextStyle(color: Colors.white, fontSize: 20),
-          decoration: const InputDecoration(
-            border: InputBorder.none,
-            hintText: 'Garden Name',
-            hintStyle: TextStyle(color: Colors.white70),
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.wallpaper),
-            tooltip: 'Change Background',
-            onPressed: () => _changeBackground(context),
-          ),
-          IconButton(
-            icon: const Icon(Icons.save),
-            tooltip: 'Save Garden',
-            onPressed: _saveGarden,
-          ),
-        ],
+      appBar: _GardenAppBar(
+        gardenName: _currentGarden.name,
+        isWateringMode: _isWateringMode,
+        onNameChanged: (newName) => _currentGarden.name = newName,
+        onBackgroundPressed: () => _changeBackground(context),
+        onSavePressed: _saveGarden,
       ),
-
       body: FutureBuilder<void>(
         future: _plantsFuture,
         builder: (context, snapshot) {
@@ -302,7 +274,6 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
             return const Center(child: Text('Failed to load plant database.'));
           }
 
-          // Once the future is complete, build the interactive garden
           return GestureDetector(
             onTap: () {
               setState(() {
@@ -315,189 +286,232 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
               }
             },
             onScaleUpdate: _handleGlobalScale,
-
             child: Stack(
               children: [
-                Positioned.fill(
-                  child: _currentGarden.backgroundPattern.isNotEmpty
-                      ? Image.asset(
-                          _currentGarden.backgroundPattern,
-                          fit: BoxFit.cover,
-                        )
-                      : Container(color: Colors.green[100]),
+                _GardenBackground(
+                  backgroundPattern: _currentGarden.backgroundPattern,
                 ),
-
-                // 🚨 FIX 4: Use the cached PlantDB data to render each plant
                 ..._currentGarden.plants.map((plant) {
                   final plantDb = _getPlantDB(plant.plantDbId);
-                  if (plantDb == null) {
-                    // Skip rendering plants that can't be found in the database
-                    return Container();
-                  }
+                  if (plantDb == null) return Container();
 
                   final isSelected = plant.id == _selectedPlantId;
 
-                  return Positioned(
-                    left: plant.position.dx,
-                    top: plant.position.dy,
-                    child: isSelected
-                        ? Draggable(
-                            data: plant,
-                            feedback: Opacity(
-                              opacity: 0.7,
-                              child: _buildPlantImage(
-                                plant,
-                              ), // Use the image builder
-                            ),
-                            childWhenDragging: Container(),
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _selectedPlantId = plant.id;
-                                });
-                              },
-                              onDoubleTap: () {
-                                if (_selectedPlant != null) {
-                                  Navigator.of(context).pushNamed(
-                                    '/plant',
-                                    arguments: _selectedPlant!.plantDbId,
-                                  );
-                                }
-                              },
-                              child: Container(
-                                decoration: isSelected
-                                    ? BoxDecoration(
-                                        border: Border.all(
-                                          color: Colors.blueAccent,
-                                          width: 3,
-                                        ),
-                                        borderRadius: BorderRadius.circular(4),
-                                      )
-                                    : null,
-                                padding: const EdgeInsets.all(5),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _buildPlantImage(
-                                      plant,
-                                    ), // Use the image builder
-                                    Text(
-                                      plantDb.name.split('(')[0].trim(),
-                                      style: TextStyle(
-                                        fontSize: 4 * plant.scale,
-                                        fontWeight: FontWeight.bold,
-                                        color: isSelected
-                                            ? Colors.blueAccent
-                                            : Colors.white,
-                                        shadows: const [
-                                          Shadow(
-                                            color: Colors.blueAccent,
-                                            blurRadius: 2,
-                                          ),
-                                        ],
-                                        overflow: TextOverflow.fade,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            onDraggableCanceled: (velocity, offset) {
-                              final double appBarHeight =
-                                  AppBar().preferredSize.height +
-                                  MediaQuery.of(context).padding.top;
-
-                              final double imageHeight = 50 * plant.scale;
-
-                              final newBodyOffset = Offset(
-                                offset.dx,
-                                offset.dy - appBarHeight - imageHeight / 2,
-                              );
-
-                              setState(() {
-                                plant.position = _applyBounds(
-                                  newBodyOffset,
-                                  screenSize,
-                                  plant,
-                                );
-                              });
-                            },
-                          )
-                        : GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _selectedPlantId = plant.id;
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              child: _buildPlantImage(
-                                plant,
-                              ), // Use the image builder
-                            ),
-                          ),
+                  return PlantWidget(
+                    plant: plant,
+                    plantDb: plantDb,
+                    isSelected: isSelected,
+                    screenSize: screenSize,
+                    isWateringMode: _isWateringMode,
+                    onPlantTap: () {
+                      if (_isWateringMode) {
+                        _markAsWatered(plant);
+                      } else {
+                        setState(() => _selectedPlantId = plant.id);
+                      }
+                    },
+                    onPlantDoubleTap: () {
+                      if (_selectedPlant != null) {
+                        Navigator.of(context).pushNamed(
+                          '/plant',
+                          arguments: _selectedPlant!.plantDbId,
+                        );
+                      }
+                    },
+                    onPositionChanged: (newPosition) {
+                      setState(() {
+                        plant.position = _applyBounds(
+                          newPosition,
+                          screenSize,
+                          plant,
+                        );
+                      });
+                    },
                   );
                 }).toList(),
-
+                if (_isWateringMode) const _WateringModeIndicator(),
                 if (_selectedPlantId != null)
-                  Positioned(
-                    bottom: 110,
-                    left: 10,
-                    right: 10,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        // 🚨 Use the name from the cached PlantDB object
-                        '${_getPlantDB(_selectedPlant!.plantDbId)?.name ?? 'Plant'} selected. Drag to move, or pinch to scale.',
-                        style: const TextStyle(color: Colors.white),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
+                  _SelectedPlantInfo(
+                    plant: _selectedPlant!,
+                    plantDb: _getPlantDB(_selectedPlant!.plantDbId),
                   ),
               ],
             ),
           );
         },
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: _ControlButtons(
+        isWateringMode: _isWateringMode,
+        hasSelectedPlant: _selectedPlantId != null,
+        onWateringToggle: () {
+          setState(() {
+            _isWateringMode = !_isWateringMode;
+            if (_isWateringMode) _selectedPlantId = null;
+          });
+        },
+        onDeletePressed: _deleteSelectedPlant,
+        onAddPressed: () => _addNewPlant(context),
+      ),
+    );
+  }
+}
 
-      floatingActionButton: SizedBox(
-        height: kBottomNavigationBarHeight + 20,
-        width: double.maxFinite,
-        child: Padding(
+// ============ REUSABLE WIDGETS ============
+
+class _GardenAppBar extends AppBar {
+  _GardenAppBar({
+    required String gardenName,
+    required bool isWateringMode,
+    required Function(String) onNameChanged,
+    required VoidCallback onBackgroundPressed,
+    required VoidCallback onSavePressed,
+  }) : super(
+         title: TextFormField(
+           initialValue: isWateringMode
+               ? 'Watering Mode: Tap Plants'
+               : gardenName,
+           onChanged: onNameChanged,
+           style: const TextStyle(color: Colors.white, fontSize: 20),
+           decoration: const InputDecoration(
+             border: InputBorder.none,
+             hintText: 'Garden Name',
+             hintStyle: TextStyle(color: Colors.white70),
+           ),
+         ),
+         actions: [
+           IconButton(
+             icon: const Icon(Icons.wallpaper),
+             tooltip: 'Change Background',
+             onPressed: onBackgroundPressed,
+           ),
+           IconButton(
+             icon: const Icon(Icons.save),
+             tooltip: 'Save Garden',
+             onPressed: onSavePressed,
+           ),
+         ],
+       );
+}
+
+class _GardenBackground extends StatelessWidget {
+  final String backgroundPattern;
+
+  const _GardenBackground({required this.backgroundPattern});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: backgroundPattern.isNotEmpty
+          ? Image.asset(backgroundPattern, fit: BoxFit.cover)
+          : Container(color: Colors.green[100]),
+    );
+  }
+}
+
+class _WateringModeIndicator extends StatelessWidget {
+  const _WateringModeIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 20,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            // Keep spaceBetween to push the Add button to the right
-            mainAxisAlignment: _selectedPlantId != null
-                ? MainAxisAlignment.spaceBetween
-                : MainAxisAlignment.end,
+          decoration: BoxDecoration(
+            color: Colors.blueAccent.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Text(
+            "🚿 Water Mode Active: Tap plants to water them",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectedPlantInfo extends StatelessWidget {
+  final PlantInstance plant;
+  final PlantDB? plantDb;
+
+  const _SelectedPlantInfo({required this.plant, required this.plantDb});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      bottom: 110,
+      left: 10,
+      right: 10,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.black54,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          '${plantDb?.name ?? 'Plant'} selected. Drag to move, or pinch to scale.',
+          style: const TextStyle(color: Colors.white),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+}
+
+class _ControlButtons extends StatelessWidget {
+  final bool isWateringMode;
+  final bool hasSelectedPlant;
+  final VoidCallback onWateringToggle;
+  final VoidCallback onDeletePressed;
+  final VoidCallback onAddPressed;
+
+  const _ControlButtons({
+    required this.isWateringMode,
+    required this.hasSelectedPlant,
+    required this.onWateringToggle,
+    required this.onDeletePressed,
+    required this.onAddPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          FloatingActionButton(
+            heroTag: 'waterModeBtn',
+            onPressed: onWateringToggle,
+            backgroundColor: isWateringMode ? Colors.blueAccent : Colors.white,
+            child: Icon(
+              Icons.opacity,
+              color: isWateringMode ? Colors.white : Colors.blueAccent,
+            ),
+          ),
+          Row(
             children: [
-              if (_selectedPlantId != null)
-                Padding(
-                  padding: EdgeInsets.only(left: 32.0),
-                  child: FloatingActionButton(
-                    heroTag: 'deleteBtn',
-                    onPressed: _deleteSelectedPlant,
-                    backgroundColor: Colors.red[700],
-                    child: const Icon(
-                      Icons.delete_forever,
-                      color: Colors.white,
-                    ),
-                  ),
+              if (hasSelectedPlant)
+                FloatingActionButton(
+                  heroTag: 'deleteBtn',
+                  onPressed: onDeletePressed,
+                  backgroundColor: Colors.red[700],
+                  child: const Icon(Icons.delete_forever, color: Colors.white),
                 ),
+              if (hasSelectedPlant) const SizedBox(width: 12),
               FloatingActionButton(
-                heroTag: 'addBtn', // Add a heroTag for safety
-                onPressed: () => _addNewPlant(context),
-                tooltip: 'Add Plant',
+                heroTag: 'addBtn',
+                onPressed: onAddPressed,
                 child: const Icon(Icons.local_florist),
               ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }

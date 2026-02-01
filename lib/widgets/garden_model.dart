@@ -4,7 +4,9 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:plant_guardian/pages/garden_editor_screen.dart';
+import 'package:plant_guardian/services/notification_service.dart';
 
 // --- Global State for Available Plants (The in-app cache) ---
 // This map will store the available plants from the 'plants' collection:
@@ -25,6 +27,7 @@ class PlantDB {
   final Uint8List decodedImageBytes; // 🚨 NEW: Store the decoded bytes
   final String description;
   final String waterFrequency;
+  final int waterDaysFrequency;
   final String exposition;
   final String idealPeriod;
   final String soilType;
@@ -37,6 +40,7 @@ class PlantDB {
     required this.decodedImageBytes, // Added
     required this.description,
     required this.waterFrequency,
+    required this.waterDaysFrequency,
     required this.exposition,
     required this.idealPeriod,
     required this.soilType,
@@ -61,6 +65,7 @@ class PlantDB {
       decodedImageBytes: imageBytes, // Store the decoded bytes
       description: data['description'] as String,
       waterFrequency: data['waterFrequency'] as String,
+      waterDaysFrequency: data['waterDaysFrequency'] as int,
       exposition: data['exposition'] as String,
       idealPeriod: data['idealPeriod'] as String,
       soilType: data['soilType'] as String,
@@ -78,12 +83,14 @@ class PlantInstance {
   plantDbId; // 🚨 NEW: The ID of the plant in the central 'plants' DB
   Offset position; // The position on the screen
   double scale; // Scale factor for resizing
+  DateTime? lastWatered;
 
   PlantInstance({
     required this.id,
     required this.plantDbId, // Requires the DB ID
     required this.position,
     this.scale = 1.0,
+    this.lastWatered,
   });
 
   // 🚨 MODIFIED: Convert PlantInstance to a Map for Firestore
@@ -95,6 +102,9 @@ class PlantInstance {
       // Store Offset as a map { 'dx': ..., 'dy': ... }
       'position': {'dx': position.dx, 'dy': position.dy},
       'scale': scale,
+      'lastWatered': lastWatered != null
+          ? Timestamp.fromDate(lastWatered!)
+          : null,
     };
   }
 
@@ -108,6 +118,9 @@ class PlantInstance {
         (json['position']['dy'] as num).toDouble(),
       ),
       scale: (json['scale'] as num).toDouble(),
+      lastWatered: json['lastWatered'] != null
+          ? (json['lastWatered'] as Timestamp).toDate()
+          : null,
     );
   }
 }
@@ -351,4 +364,112 @@ void openGardenEditor(BuildContext context, Garden garden) async {
   await Navigator.of(context).push<Garden>(
     MaterialPageRoute(builder: (context) => GardenEditorScreen(garden: garden)),
   );
+}
+
+bool isPlantThirsty(PlantInstance plant) {
+  final plantDb = globalPlantsDB[plant.plantDbId];
+  if (plantDb == null) return false;
+
+  // Extract number of days from frequency string (e.g., "Every 3 days" -> 3)
+  final int frequencyDays = plantDb.waterDaysFrequency;
+
+  final lastWatered =
+      plant.lastWatered ?? DateTime.fromMillisecondsSinceEpoch(0);
+  final difference = DateTime.now().difference(lastWatered).inDays;
+
+  return difference >= frequencyDays;
+}
+
+Future<void> checkWateringNeedsAndNotify(String userId) async {
+  final firestore = FirebaseFirestore.instance;
+
+  // 1. Ensure DB cache is ready
+  await fetchAndCacheAvailablePlants(firestore);
+
+  // 2. Fetch all gardens for this user
+  final gardensSnapshot = await firestore
+      .collection('users')
+      .doc(userId)
+      .collection('gardens')
+      .get();
+
+  List<String> plantsToWater = [];
+
+  for (var gardenDoc in gardensSnapshot.docs) {
+    final garden = Garden.fromJson(gardenDoc.data());
+
+    for (var instance in garden.plants) {
+      final plantDb = globalPlantsDB[instance.plantDbId];
+      if (plantDb == null) continue;
+
+      // Logic: If never watered, it's thirsty.
+      // Otherwise, check if (Now - lastWatered) > frequency
+      bool needsWater = isPlantThirsty(instance);
+
+      if (needsWater) {
+        plantsToWater.add("${plantDb.name} (${garden.name})");
+      }
+    }
+  }
+
+  if (plantsToWater.isNotEmpty) {
+    _showThirstyNotification(plantsToWater);
+  }
+}
+
+// // Simple parser: looks for numbers in strings like "Every 3 days" or "Once a week"
+// int _parseFrequencyToDays(String freq) {
+//   final numberMatch = RegExp(r'\d+').firstMatch(freq);
+//   if (numberMatch != null) return int.parse(numberMatch.group(0)!);
+//   if (freq.toLowerCase().contains('week')) return 7;
+//   return 3; // Default fallback
+// }
+
+// 2. Show the notification with the button
+Future<void> _showThirstyNotification(List<String> names) async {
+  const androidDetails = AndroidNotificationDetails(
+    'watering_id',
+    'Plant Care',
+    importance: Importance.max,
+    priority: Priority.high,
+    actions: [
+      AndroidNotificationAction(
+        'watered_action',
+        'Mark all as Watered',
+        showsUserInterface: true,
+      ),
+    ],
+  );
+
+  await NotificationService().showInstantNotification(
+    id: 100,
+    title: "Time to Water! 💧",
+    body: "These plants need love: ${names.join(', ')}",
+    notificationDetails: const NotificationDetails(android: androidDetails),
+    payload: jsonEncode({
+      "type": "bulk_water",
+    }), // Pass IDs here to identify which plants
+  );
+}
+
+Future<void> waterPlant(String gardenId, String plantId, String userId) async {
+  await FirebaseFirestore.instance
+      .collection('users')
+      .doc(userId)
+      .collection('gardens')
+      .doc(gardenId)
+      .get()
+      .then((doc) async {
+        if (doc.exists) {
+          Garden garden = Garden.fromJson(doc.data()!);
+          // Update the specific plant instance
+          for (var plant in garden.plants) {
+            if (plant.id == plantId) {
+              plant.lastWatered = DateTime.now();
+            }
+          }
+          // Save back to Firestore
+          await doc.reference.update(garden.toJson());
+        }
+      });
 }

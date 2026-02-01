@@ -1,12 +1,12 @@
 import 'dart:io';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:image/image.dart' as img;
+import 'package:plant_guardian/services/notification_service.dart';
+import 'package:plant_guardian/widgets/garden_model.dart';
 import 'package:plant_guardian/widgets/image_helper.dart';
 
 class UserScreen extends StatefulWidget {
@@ -30,6 +30,9 @@ class _UserScreenState extends State<UserScreen> {
   final _displayNameController = TextEditingController();
   final _bioController = TextEditingController();
   final _favPlantController = TextEditingController();
+
+  bool _dailyRemindersEnabled = false;
+  bool _thirstyAlertsEnabled = false;
 
   // 🚨 NEW STATE: Controls view vs. edit mode
   bool _isEditing = false;
@@ -134,10 +137,13 @@ class _UserScreenState extends State<UserScreen> {
         "displayName": _displayNameController.text,
         "bio": _bioController.text,
         "favPlant": _favPlantController.text,
-        // Only update photoUrl if a new image was selected
+        "dailyReminders": _dailyRemindersEnabled,
+        "thirstyAlerts": _thirstyAlertsEnabled,
         if (_newImageFile != null) "photoUrl": base64Data,
         "updatedAt": FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+
+      await _updateNotificationSchedules();
 
       await _auth.currentUser!.updateDisplayName(_displayNameController.text);
 
@@ -166,7 +172,70 @@ class _UserScreenState extends State<UserScreen> {
     Navigator.of(context).pushReplacementNamed('/welcome');
   }
 
+  Future<void> _updateNotificationSchedules() async {
+    final service = NotificationService();
+
+    if (_dailyRemindersEnabled) {
+      await service.requestExactAlarmPermission();
+      // Schedule for 9:00 AM daily
+      await service.scheduleDailyNotification(
+        1,
+        "Good Morning!",
+        "Don't forget to check your plants today!",
+        9,
+        0,
+      );
+    } else {
+      await service.notificationsPlugin.cancel(id: 1);
+    }
+
+    if (_thirstyAlertsEnabled) {
+      checkWateringNeedsAndNotify(_auth.currentUser!.uid);
+    } else {
+      await service.notificationsPlugin.cancel(id: 100);
+    }
+  }
+
   // --- Build Method ---
+
+  Widget _buildNotificationSettings() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: Text(
+            "Notification Settings",
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ),
+        SwitchListTile(
+          title: const Text("Daily Care Reminders"),
+          subtitle: const Text("Get a nudge at 9:00 AM every morning"),
+          secondary: const Icon(Icons.alarm),
+          value: _dailyRemindersEnabled,
+          // Only allow changing in edit mode to keep it consistent with your UI
+          onChanged: _isEditing
+              ? (val) => setState(() => _dailyRemindersEnabled = val)
+              : null,
+        ),
+        SwitchListTile(
+          title: const Text("Thirsty Plant Alerts"),
+          subtitle: const Text("Notify when a plant needs watering"),
+          secondary: const Icon(Icons.water_drop),
+          value: _thirstyAlertsEnabled,
+          onChanged: _isEditing
+              ? (val) => setState(() => _thirstyAlertsEnabled = val)
+              : null,
+        ),
+        const Divider(),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -203,6 +272,8 @@ class _UserScreenState extends State<UserScreen> {
                 (data["displayName"] ?? user.displayName ?? "");
             _bioController.text = (data["bio"] ?? "");
             _favPlantController.text = (data["favPlant"] ?? "");
+            _dailyRemindersEnabled = data["dailyReminders"] ?? false;
+            _thirstyAlertsEnabled = data["thirstyAlerts"] ?? false;
           }
 
           final String? photoData = data["photoUrl"];
@@ -305,6 +376,10 @@ class _UserScreenState extends State<UserScreen> {
                       readOnly: !_isEditing,
                       icon: Icons.local_florist,
                     ),
+
+                    const SizedBox(height: 16),
+                    _buildNotificationSettings(),
+                    const SizedBox(height: 80),
 
                     // Add space at the bottom to avoid FAB overlap
                     const SizedBox(height: 80),
