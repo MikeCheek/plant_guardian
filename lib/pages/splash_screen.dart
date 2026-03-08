@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 // import 'package:flutter_gemma/mobile/flutter_gemma_mobile.dart';
 
 // import '../TFLiteHelper.dart';
+import '../colors.dart';
 import '../widgets/my_app_scaffold.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -75,25 +76,56 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Colors.blueGrey,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              "Welcome to Plant Guardian",
-              style: Theme.of(context).textTheme.headlineLarge,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: AppColors.backgroundGradient(isDark),
+        ),
+        child: Center(
+          child: Container(
+            width: 340,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: scheme.surface.withValues(alpha: isDark ? 0.7 : 0.92),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: scheme.outline.withValues(alpha: 0.45)),
             ),
-            const SizedBox(height: 24),
-            LinearProgressIndicator(
-              value: progress,
-              backgroundColor: Colors.green,
-              minHeight: 5,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.eco_rounded, size: 58, color: scheme.primary),
+                const SizedBox(height: 14),
+                Text(
+                  'Plant Guardian',
+                  style: theme.textTheme.headlineMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Houseplant Care Management',
+                  style: theme.textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(value: progress, minHeight: 8),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  status,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: scheme.primary,
+                    letterSpacing: 0.9,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            Text(status),
-          ],
+          ),
         ),
       ),
     );

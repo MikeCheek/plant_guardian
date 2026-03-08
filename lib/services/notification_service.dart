@@ -140,24 +140,26 @@ void notificationTapHandler(NotificationResponse details) {
   // You can navigate to a specific screen here if they tap the notification body
 }
 
-@pragma('vm:entry-point') // Mandatory for Release mode
+@pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     try {
-      // 1. Initialize Firebase for the background process
+      // 1. Initialize Firebase
       await Firebase.initializeApp();
 
-      // 2. Get the current user ID
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return Future.value(true);
+      // 2. IMPORTANT: Initialize Notifications inside the background isolate
+      final notificationService = NotificationService();
+      await notificationService.initNotification();
 
-      // 3. Run your check logic from garden_model
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return true;
+
+      // 3. MUST await this call
       await checkWateringNeedsAndNotify(user.uid);
 
-      return Future.value(true);
+      return true;
     } catch (e) {
-      print("Background Task Failed: $e");
-      return Future.value(false);
+      return false;
     }
   });
 }

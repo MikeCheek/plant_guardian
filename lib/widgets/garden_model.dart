@@ -380,59 +380,86 @@ bool isPlantThirsty(PlantInstance plant) {
   return difference >= frequencyDays;
 }
 
-Future<void> checkWateringNeedsAndNotify(String userId) async {
+Future<Map<String, List<String>>> getThirstyMapFromFirestore(
+  String userId,
+) async {
   final firestore = FirebaseFirestore.instance;
-
-  // 1. Ensure DB cache is ready
   await fetchAndCacheAvailablePlants(firestore);
 
-  // 2. Fetch all gardens for this user
   final gardensSnapshot = await firestore
       .collection('users')
       .doc(userId)
       .collection('gardens')
       .get();
 
-  List<String> plantsToWater = [];
+  // 🟢 Change: Map to group plants by their garden name
+  Map<String, List<String>> groupedThirstyPlants = {};
 
   for (var gardenDoc in gardensSnapshot.docs) {
     final garden = Garden.fromJson(gardenDoc.data());
+    List<String> thirstyInThisGarden = [];
 
     for (var instance in garden.plants) {
       final plantDb = globalPlantsDB[instance.plantDbId];
-      if (plantDb == null) continue;
+      if (plantDb != null && isPlantThirsty(instance)) {
+        thirstyInThisGarden.add(plantDb.name);
+      }
+    }
 
-      // Logic: If never watered, it's thirsty.
-      // Otherwise, check if (Now - lastWatered) > frequency
-      bool needsWater = isPlantThirsty(instance);
-
-      if (needsWater) {
-        plantsToWater.add("${plantDb.name} (${garden.name})");
+    if (thirstyInThisGarden.isNotEmpty) {
+      // 🟢 FIX: If the garden name already exists, add to the list.
+      // Otherwise, create a new list.
+      if (groupedThirstyPlants.containsKey(garden.name)) {
+        groupedThirstyPlants[garden.name]!.addAll(thirstyInThisGarden);
+      } else {
+        groupedThirstyPlants[garden.name] = thirstyInThisGarden;
       }
     }
   }
 
-  if (plantsToWater.isNotEmpty) {
-    _showThirstyNotification(plantsToWater);
+  return groupedThirstyPlants;
+}
+
+Future<void> checkWateringNeedsAndNotify(String userId) async {
+  final thirstyMap = await getThirstyMapFromFirestore(userId);
+  if (thirstyMap.isNotEmpty) {
+    _showThirstyNotificationGrouped(thirstyMap);
+  } else {
+    _showGoodHealthNotification();
   }
 }
 
-// // Simple parser: looks for numbers in strings like "Every 3 days" or "Once a week"
-// int _parseFrequencyToDays(String freq) {
-//   final numberMatch = RegExp(r'\d+').firstMatch(freq);
-//   if (numberMatch != null) return int.parse(numberMatch.group(0)!);
-//   if (freq.toLowerCase().contains('week')) return 7;
-//   return 3; // Default fallback
-// }
+Future<void> _showThirstyNotificationGrouped(
+  Map<String, List<String>> groupedPlants,
+) async {
+  // 1. Build the formatted string
+  StringBuffer buffer = StringBuffer();
+  int totalCount = 0;
 
-// 2. Show the notification with the button
-Future<void> _showThirstyNotification(List<String> names) async {
-  const androidDetails = AndroidNotificationDetails(
+  groupedPlants.forEach((gardenName, plants) {
+    buffer.writeln("🍃 $gardenName:"); // Garden Header
+    for (var plant in plants) {
+      buffer.writeln("  • $plant");
+      totalCount++;
+    }
+    buffer.writeln(""); // Small gap between gardens
+  });
+
+  // 2. Setup BigText style for expansion
+  final bigTextStyle = BigTextStyleInformation(
+    buffer.toString().trim(),
+    contentTitle: "Thirsty Plants! 💧",
+    summaryText:
+        "$totalCount plants need water across ${groupedPlants.length} gardens",
+  );
+
+  final androidDetails = AndroidNotificationDetails(
     'watering_id',
     'Plant Care',
     importance: Importance.max,
     priority: Priority.high,
-    actions: [
+    styleInformation: bigTextStyle,
+    actions: const [
       AndroidNotificationAction(
         'watered_action',
         'Mark all as Watered',
@@ -443,12 +470,48 @@ Future<void> _showThirstyNotification(List<String> names) async {
 
   await NotificationService().showInstantNotification(
     id: 100,
+    title: "Thirsty Plants! 💧",
+    body: "Check your $totalCount plants in ${groupedPlants.keys.first}...",
+    notificationDetails: NotificationDetails(android: androidDetails),
+    payload: jsonEncode({"type": "bulk_water"}),
+  );
+}
+
+// 2. Show the notification with the button
+Future<void> _showThirstyNotification(List<String> names) async {
+  // 1. Create a formatted multi-line string for the expanded view
+  final String bulletedList = names.map((name) => "• $name").join('\n');
+
+  // 2. Define the BigText style
+  final bigTextStyle = BigTextStyleInformation(
+    bulletedList,
+    contentTitle: "Time to Water! 💧",
+    summaryText:
+        "${names.length} plants need attention", // Shown when collapsed
+  );
+
+  final androidDetails = AndroidNotificationDetails(
+    'watering_id',
+    'Plant Care',
+    importance: Importance.max,
+    priority: Priority.high,
+    styleInformation: bigTextStyle, // 🟢 Add the BigText style here
+    actions: [
+      const AndroidNotificationAction(
+        'watered_action',
+        'Mark all as Watered',
+        showsUserInterface: true,
+      ),
+    ],
+  );
+
+  await NotificationService().showInstantNotification(
+    id: 100,
     title: "Time to Water! 💧",
-    body: "These plants need love: ${names.join(', ')}",
-    notificationDetails: const NotificationDetails(android: androidDetails),
-    payload: jsonEncode({
-      "type": "bulk_water",
-    }), // Pass IDs here to identify which plants
+    // This body is what shows in the collapsed state or on the lock screen
+    body: "${names.length} plants need love: ${names.take(2).join(', ')}...",
+    notificationDetails: NotificationDetails(android: androidDetails),
+    payload: jsonEncode({"type": "bulk_water"}),
   );
 }
 
@@ -472,4 +535,20 @@ Future<void> waterPlant(String gardenId, String plantId, String userId) async {
           await doc.reference.update(garden.toJson());
         }
       });
+}
+
+Future<void> _showGoodHealthNotification() async {
+  const androidDetails = AndroidNotificationDetails(
+    'watering_id',
+    'Plant Care',
+    importance: Importance.low,
+    priority: Priority.low,
+  );
+
+  await NotificationService().showInstantNotification(
+    id: 101,
+    title: "All Plants Healthy! 🌿",
+    body: "No plants need watering right now. Keep up the good work!",
+    notificationDetails: const NotificationDetails(android: androidDetails),
+  );
 }

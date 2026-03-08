@@ -29,10 +29,20 @@ class _ChatScreenOnlineState extends State<ChatScreenOnline> {
     _checkServerStatus();
   }
 
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scrollController.dispose();
+    _liveResponse.dispose();
+    // If your OnlineAgent has a close/dispose method, call it here
+    super.dispose();
+  }
+
   /// Pings the /health endpoint on your Docker server
   Future<void> _checkServerStatus() async {
     try {
       await _agent.init(); // This calls the health check we defined
+      if (!mounted) return;
       setState(() {
         _isServerReady = true;
         _isServerOffline = false;
@@ -40,7 +50,10 @@ class _ChatScreenOnlineState extends State<ChatScreenOnline> {
     } catch (e) {
       debugPrint("Server Error: $e");
       // Optional: Retry after 10 seconds if server is still booting the model
-      Future.delayed(const Duration(seconds: 20), _checkServerStatus);
+      if (!mounted) return;
+      Future.delayed(const Duration(seconds: 20), () {
+        if (mounted) _checkServerStatus();
+      });
       setState(() {
         _isServerOffline = true;
       });

@@ -3,6 +3,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:plant_guardian/colors.dart';
 import 'package:plant_guardian/widgets/garden_model.dart';
 // import 'package:shared_preferences/shared_preferences.dart';
 
@@ -71,8 +72,26 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     if (_checking) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Loading your garden workspace...',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     if (_userInfo != null) {
@@ -99,55 +118,92 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     }
 
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'Welcome to Plant Guardian',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
-              textAlign: TextAlign.center,
-            ),
-            Image.asset('assets/images/guardian.png', width: 200, height: 300),
-            const SizedBox(height: 12),
-            const Text(
-              'Please log in to your account or register a new one to continue.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 36),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _openLogin,
-                child: const Text('Log in'),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: AppColors.backgroundGradient(isDark),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(22),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.eco, color: scheme.primary, size: 56),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Plant Guardian',
+                          style: theme.textTheme.headlineMedium,
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Houseplant Care Management',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: scheme.primary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 18),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.asset(
+                            'assets/images/guardian.png',
+                            width: 150,
+                            height: 220,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        Text(
+                          'Monitor watering needs, keep every room thriving, and get instant AI guidance.',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 28),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _openLogin,
+                            child: const Text('Log In'),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: _openRegister,
+                            child: const Text('Create Account'),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _openGoogleSignIn,
+                            icon: const Icon(Icons.account_circle_outlined),
+                            label: const Text('Sign In with Google'),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pushReplacementNamed('/');
+                          },
+                          child: const Text('Continue as Guest'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: _openRegister,
-                child: const Text('Register'),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: _openGoogleSignIn,
-                child: const Text('Sign in with Google'),
-              ),
-            ),
-            const SizedBox(height: 20),
-            TextButton(
-              onPressed: () {
-                // Optionally allow guest access to home without stored credentials
-                Navigator.of(context).pushReplacementNamed('/');
-              },
-              child: const Text('Continue without logging in'),
-            ),
-          ],
+          ),
         ),
       ),
     );

@@ -121,7 +121,7 @@ class _GardenListScreenState extends State<GardenListScreen>
               mini: true,
               backgroundColor: color,
               onPressed: onTap,
-              child: Icon(icon),
+              child: Icon(icon, color: Colors.white),
             ),
           ],
         ),

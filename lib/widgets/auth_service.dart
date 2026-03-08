@@ -67,6 +67,14 @@ class AuthService with ChangeNotifier {
     }
   }
 
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email.trim());
+    } on FirebaseException catch (e) {
+      throw Exception(e.message ?? e.toString());
+    }
+  }
+
   Future<void> signInWithGoogle() async {
     try {
       final GoogleSignIn signIn = GoogleSignIn.instance;

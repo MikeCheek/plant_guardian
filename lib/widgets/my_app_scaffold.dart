@@ -12,9 +12,11 @@ import 'package:plant_guardian/pages/chat_screen_online.dart';
 import 'package:plant_guardian/pages/login_screen.dart';
 import 'package:plant_guardian/pages/new_plant_screen.dart';
 import 'package:plant_guardian/pages/plant_info_screen.dart';
+import 'package:plant_guardian/pages/reset_password_screen.dart';
 import 'package:plant_guardian/pages/register_screen.dart';
 import 'package:plant_guardian/pages/user_screen.dart';
 
+import '../colors.dart';
 import '../pages/welcome_screen.dart';
 import '../theme.dart';
 
@@ -37,10 +39,10 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
   ];
 
   final List<String> _titles = [
-    'Plant Guardian',
-    'Garden',
-    'Image Classifier',
-    '🤖 GreenThumb AI',
+    'Dashboard',
+    'Gardens',
+    'Vision',
+    'GreenThumb AI',
   ];
 
   @override
@@ -153,14 +155,20 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = _isDarkMode;
+    final bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+
     return MaterialApp(
       title: 'Plant Guardian',
-      theme: _isDarkMode ? AppTheme.darkTheme : AppTheme.lightTheme,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
       initialRoute: '/welcome',
       routes: {
         '/welcome': (context) => const WelcomeScreen(),
         '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),
+        '/resetPassword': (context) => const ResetPasswordScreen(),
         '/googleSignIn': (context) => GoogleSignInScreen(),
         '/plants': (context) => NewPlantScreen(),
         '/plant': (context) => PlantInfoScreen(
@@ -172,9 +180,27 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
       debugShowCheckedModeBanner: false,
       home: Scaffold(
         appBar: AppBar(
-          title: Text(_titles[_selectedIndex]),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_titles[_selectedIndex]),
+              // Text(
+              //   'Houseplant Care Management',
+              //   style: TextStyle(
+              //     fontSize: 11,
+              //     letterSpacing: 0.4,
+              //     color: isDark ? Colors.white70 : Colors.black54,
+              //   ),
+              // ),
+            ],
+          ),
           automaticallyImplyLeading: false,
-          toolbarHeight: 60.0,
+          toolbarHeight: 72,
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: AppColors.shellGradient(isDark),
+            ),
+          ),
           actions: [
             Padding(
               padding: const EdgeInsets.only(right: 16.0),
@@ -183,22 +209,38 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
           ],
         ),
         body: _pages[_selectedIndex],
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _selectedIndex,
-          onTap: _onItemTapped,
-          type: BottomNavigationBarType.fixed,
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.local_florist),
-              label: 'Garden',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.image),
-              label: 'Recognizer',
-            ),
-            BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Chat'),
-          ],
+        bottomNavigationBar: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: isKeyboardOpen
+              ? const SizedBox.shrink()
+              : ClipRRect(
+                  child: NavigationBar(
+                    height: 70,
+                    selectedIndex: _selectedIndex,
+                    onDestinationSelected: _onItemTapped,
+                    destinations: const [
+                      NavigationDestination(
+                        icon: Icon(Icons.home_outlined),
+                        label: 'Home',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.local_florist_outlined),
+                        selectedIcon: Icon(Icons.local_florist),
+                        label: 'Garden',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.image_search_outlined),
+                        selectedIcon: Icon(Icons.image_search),
+                        label: 'Vision',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.chat_bubble_outline),
+                        selectedIcon: Icon(Icons.chat_bubble),
+                        label: 'Chat',
+                      ),
+                    ],
+                  ),
+                ),
         ),
       ),
     );
