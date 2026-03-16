@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:plant_guardian/pages/plant_info_screen.dart';
 import 'package:plant_guardian/widgets/plant_health_card.dart';
 import '../TFLiteHelper.dart';
+import '../widgets/model_update_helper.dart';
 import 'package:plant_guardian/widgets/garden_model.dart';
 
 class ImageClassifierScreen extends StatefulWidget {
@@ -20,32 +21,69 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
   File? _image;
   String _result = '';
   double? _score;
-
-  // New variables for Disease Classification
   String _diseaseResult = '';
   double? _diseaseScore;
-
   bool _isLoading = false;
+  bool _isInitializingModels = true; // New variable to track update state
 
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
   late Future<void> _plantsFuture;
 
-  final speciesClassifier = TFLiteHelper(
-    modelFile: 'assets/houseplant_classifier_model.tflite',
-    labelFile: 'assets/houseplant_classifier_labels.txt',
-  );
-
-  // Initialize Disease Classifier
-  final diseaseClassifier = TFLiteHelper(
-    modelFile: 'assets/houseplant_disease_model.tflite',
-    labelFile: 'assets/houseplant_disease_labels.txt',
-  );
+  // We will initialize these in initState now
+  late TFLiteHelper speciesClassifier;
+  late TFLiteHelper diseaseClassifier;
 
   @override
   void initState() {
     super.initState();
     _plantsFuture = fetchAndCacheAvailablePlants(_firestore);
+    _setupModels(); // Call our new setup function
+  }
+
+  Future<void> _setupModels() async {
+    final updater = ModelUpdateHelper(
+      manifestUrl:
+          'https://drive.google.com/uc?export=download&id=1ZfuvxYqsNsixTG7Sb_O_-Q5EQV7hbSl1',
+    );
+
+    // This one call handles everything
+    final downloadedData = await updater.updateAllModels();
+
+    // Species Logic
+    bool hasSpecies = downloadedData.containsKey('species');
+    speciesClassifier = TFLiteHelper(
+      modelFile: hasSpecies
+          ? downloadedData['species']['modelPath']
+          : 'assets/houseplant_classifier_model.tflite',
+      labelFile: hasSpecies
+          ? downloadedData['species']['labelPath']
+          : 'assets/houseplant_classifier_labels.txt',
+      isAsset: !hasSpecies,
+    );
+
+    // Disease Logic
+    bool hasDisease = downloadedData.containsKey('disease');
+    diseaseClassifier = TFLiteHelper(
+      modelFile: hasDisease
+          ? downloadedData['disease']['modelPath']
+          : 'assets/houseplant_disease_model.tflite',
+      labelFile: hasDisease
+          ? downloadedData['disease']['labelPath']
+          : 'assets/houseplant_disease_labels.txt',
+      isAsset: !hasDisease,
+    );
+
+    await speciesClassifier.init(
+      version: hasSpecies ? downloadedData['species']['version'] : 0,
+    );
+    await diseaseClassifier.init(
+      version: hasDisease ? downloadedData['disease']['version'] : 0,
+    );
+
+    setState(() {
+      _isInitializingModels = false;
+    });
   }
 
   // Modified to handle both classifications
@@ -152,10 +190,44 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
       );
       return;
     }
-    await _executeAddToGarden(plantDb);
+    final nickname = await _askForNickname(plantDb.name.split('(')[0].trim());
+    if (!mounted) return;
+    await _executeAddToGarden(plantDb, nickname: nickname);
   }
 
-  Future<void> _executeAddToGarden(PlantDB plantDb) async {
+  Future<String?> _askForNickname(String defaultName) async {
+    final controller = TextEditingController();
+
+    final nickname = await showDialog<String?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Give your plant a nickname'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(
+            hintText: 'Optional (e.g., $defaultName Jr.)',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: const Text('Skip'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    final cleaned = nickname?.trim();
+    return (cleaned == null || cleaned.isEmpty) ? null : cleaned;
+  }
+
+  Future<void> _executeAddToGarden(PlantDB plantDb, {String? nickname}) async {
     final user = _auth.currentUser;
     if (user == null) return;
     setState(() => _isLoading = true);
@@ -203,6 +275,7 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
             100 + Random().nextDouble() * 50,
           ),
           scale: 1.5,
+          nickname: nickname,
         );
         selectedGarden.plants.add(newInstance);
         await saveGarden(user, selectedGarden, _firestore, context);
@@ -236,6 +309,20 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isInitializingModels) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 20),
+              Text("Checking for model updates..."),
+            ],
+          ),
+        ),
+      );
+    }
     return Scaffold(
       body: FutureBuilder(
         future: _plantsFuture,
@@ -245,6 +332,31 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
           }
           return Stack(
             children: [
+              Positioned(
+                top: 10,
+                right: 10,
+                child: IconButton(
+                  icon: Icon(
+                    Icons.info_outline,
+                    color: Colors.grey[400],
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    showAboutDialog(
+                      context: context,
+                      applicationName: 'Plant Guardian AI',
+                      children: [
+                        Text("Species Model: v${speciesClassifier.version}"),
+                        Text("Disease Model: v${diseaseClassifier.version}"),
+                        const SizedBox(height: 10),
+                        const Text(
+                          "Models are updated automatically via cloud sync.",
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
               Column(
                 children: [
                   Padding(
@@ -471,6 +583,33 @@ class _ImageClassifierScreenState extends State<ImageClassifierScreen> {
               ),
             ),
           ),
+        const SizedBox(height: 20),
+        Divider(color: Colors.grey[200]),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Column(
+            children: [
+              Text(
+                "Species Model v${speciesClassifier.version} • Disease Model v${diseaseClassifier.version}",
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey[400],
+                  letterSpacing: 0.5,
+                ),
+              ),
+              Text(
+                speciesClassifier.isAsset
+                    ? "Running Local Assets"
+                    : "Running Updated Cloud Models",
+                style: TextStyle(
+                  fontSize: 9,
+                  color: Colors.grey[300],
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 100),
       ],
     );

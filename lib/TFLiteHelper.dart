@@ -11,34 +11,47 @@ class TFLiteHelper {
 
   final int imageSize;
   late int numClasses;
-  final String modelFile;
-  final String labelFile;
+  final String modelFile; // This can now be an asset path or a full file path
+  final String labelFile; // This can now be an asset path or a full file path
+  final bool isAsset; // NEW: Tells the helper where to look
+  int version = 0;
 
   late List<String> _labels;
   late Float32List _inputBuffer;
   late Float32List _outputBuffer;
 
-  // Constructor to pass specific model configurations
   TFLiteHelper({
     required this.modelFile,
     required this.labelFile,
     this.imageSize = 256,
+    this.isAsset = true, // Default to true for backward compatibility
   });
 
-  Future<void> init() async {
+  Future<void> init({int version = 0}) async {
+    this.version = version;
     try {
-      print("🔹 Loading TFLite model: $modelFile");
-      _interpreter = await Interpreter.fromAsset(modelFile);
-      _labels = (await rootBundle.loadString(labelFile)).trim().split('\n');
+      if (isAsset) {
+        print("🔹 Loading TFLite model from ASSETS: $modelFile");
+        _interpreter = await Interpreter.fromAsset(modelFile);
+        _labels = (await rootBundle.loadString(labelFile)).trim().split('\n');
+      } else {
+        print("📂 Loading TFLite model from STORAGE: $modelFile");
+        // Load the model from a physical file path
+        _interpreter = Interpreter.fromFile(File(modelFile));
+
+        // Load the labels from a physical file path
+        final labelData = await File(labelFile).readAsString();
+        _labels = labelData.trim().split('\n');
+      }
 
       numClasses = _labels.length;
 
-      // Initialize buffers specific to this instance's size/classes
+      // Initialize buffers
       _inputBuffer = Float32List(imageSize * imageSize * 3);
       _outputBuffer = Float32List(numClasses);
 
       _isInitialized = true;
-      print("✅ Model $modelFile loaded successfully!");
+      print("✅ Model loaded successfully!");
     } catch (e, stack) {
       print("❌ Failed to load model: $e");
       print(stack);
@@ -47,6 +60,7 @@ class TFLiteHelper {
 
   bool get isInitialized => _isInitialized;
 
+  // --- Preprocessing remains the same ---
   void preprocessImage(File imageFile) {
     final image = img.decodeImage(imageFile.readAsBytesSync())!;
     final resizedImage = img.copyResize(
@@ -59,9 +73,10 @@ class TFLiteHelper {
     for (int y = 0; y < imageSize; y++) {
       for (int x = 0; x < imageSize; x++) {
         final pixel = resizedImage.getPixel(x, y);
-        _inputBuffer[o++] = pixel.r.toDouble(); // (pixel.r - 127.5) / 127.5;
-        _inputBuffer[o++] = pixel.g.toDouble(); // (pixel.g - 127.5) / 127.5;
-        _inputBuffer[o++] = pixel.b.toDouble(); // (pixel.b - 127.5) / 127.5;
+        // Ensure normalization matches your training (0-255 or -1 to 1)
+        _inputBuffer[o++] = pixel.r.toDouble();
+        _inputBuffer[o++] = pixel.g.toDouble();
+        _inputBuffer[o++] = pixel.b.toDouble();
       }
     }
   }
@@ -71,13 +86,12 @@ class TFLiteHelper {
 
     preprocessImage(imageFile);
 
-    // Reshape input for model: [1, 224, 224, 3]
     final input = _inputBuffer.reshape([1, imageSize, imageSize, 3]);
     final output = _outputBuffer.reshape([1, numClasses]);
 
     _interpreter.run(input, output);
 
-    double maxScore = output[0][0];
+    double maxScore = -1.0;
     int maxIndex = 0;
     for (int i = 0; i < output[0].length; i++) {
       if (output[0][i] > maxScore) {
@@ -89,6 +103,7 @@ class TFLiteHelper {
     return (_labels[maxIndex], maxScore);
   }
 
+  // --- Camera Preprocessing remains the same ---
   void preprocessCameraImage(CameraImage image) {
     final yPlane = image.planes[0],
         uPlane = image.planes[1],
@@ -113,23 +128,21 @@ class TFLiteHelper {
         double r = (yf + 1.402 * vf).clamp(0, 255);
         double g = (yf - 0.344136 * uf - 0.714136 * vf).clamp(0, 255);
         double b = (yf + 1.772 * uf).clamp(0, 255);
-        _inputBuffer[o++] = r.toDouble(); // (r - 127.5) / 127.5;
-        _inputBuffer[o++] = g.toDouble(); // (g - 127.5) / 127.5;
-        _inputBuffer[o++] = b.toDouble(); // (b - 127.5) / 127.5;
+        _inputBuffer[o++] = r;
+        _inputBuffer[o++] = g;
+        _inputBuffer[o++] = b;
       }
     }
   }
 
   Future<(String, double)> classifyCameraImage(CameraImage image) async {
     if (!_isInitialized) throw Exception("Model not initialized");
-
     preprocessCameraImage(image);
-
     final input = _inputBuffer.reshape([1, imageSize, imageSize, 3]);
     final output = _outputBuffer.reshape([1, numClasses]);
     _interpreter.run(input, output);
 
-    double maxScore = output[0][0];
+    double maxScore = -1.0;
     int maxIndex = 0;
     for (int i = 0; i < output[0].length; i++) {
       if (output[0][i] > maxScore) {
@@ -137,7 +150,10 @@ class TFLiteHelper {
         maxIndex = i;
       }
     }
-
     return (_labels[maxIndex], maxScore);
+  }
+
+  void close() {
+    _interpreter.close();
   }
 }

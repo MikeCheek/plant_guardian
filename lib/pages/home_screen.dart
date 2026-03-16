@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:plant_guardian/pages/plant_explorer_screen.dart';
 
 import 'package:plant_guardian/colors.dart';
 import 'package:plant_guardian/widgets/garden_model.dart';
@@ -16,6 +17,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   // Store raw data instead of a single string for better UI mapping
   Map<String, List<String>> _thirstyMap = {};
+  List<_UpcomingWateringItem> _upcomingPlants = [];
   bool _isGenerating = true;
   String _statusMessage = "INITIALIZING SYSTEM...";
 
@@ -37,10 +39,12 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       // Logic placeholder for your getThirstyMapFromFirestore(user.uid)
       final data = await getThirstyMapFromFirestore(user.uid);
+      final upcomingData = await _getUpcomingWateringPlants(user.uid);
 
       if (mounted) {
         setState(() {
           _thirstyMap = data;
+          _upcomingPlants = upcomingData;
           _isGenerating = false;
         });
       }
@@ -48,10 +52,66 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _statusMessage = "SENSOR OFFLINE";
+          _upcomingPlants = [];
           _isGenerating = false;
         });
       }
     }
+  }
+
+  Future<List<_UpcomingWateringItem>> _getUpcomingWateringPlants(
+    String userId,
+  ) async {
+    final firestore = FirebaseFirestore.instance;
+    await fetchAndCacheAvailablePlants(firestore);
+
+    final gardensSnapshot = await firestore
+        .collection('users')
+        .doc(userId)
+        .collection('gardens')
+        .get();
+
+    final now = DateTime.now();
+    final List<_UpcomingWateringItem> upcoming = [];
+
+    for (final gardenDoc in gardensSnapshot.docs) {
+      final garden = Garden.fromJson(gardenDoc.data());
+      for (final instance in garden.plants) {
+        final plantDb = globalPlantsDB[instance.plantDbId];
+        if (plantDb == null) continue;
+
+        final lastWatered = instance.lastWatered ?? now;
+        final daysSinceWatering = now.difference(lastWatered).inDays;
+        final daysUntilWatering =
+            plantDb.waterDaysFrequency - daysSinceWatering;
+
+        if (daysUntilWatering <= 0) {
+          continue;
+        }
+
+        upcoming.add(
+          _UpcomingWateringItem(
+            gardenName: garden.name,
+            plantName: getPlantDisplayName(instance),
+            daysUntilWatering: daysUntilWatering,
+          ),
+        );
+      }
+    }
+
+    upcoming.sort((a, b) {
+      final urgency = a.daysUntilWatering.compareTo(b.daysUntilWatering);
+      if (urgency != 0) return urgency;
+      return a.plantName.toLowerCase().compareTo(b.plantName.toLowerCase());
+    });
+
+    return upcoming.take(8).toList();
+  }
+
+  String _formatDueLabel(int days) {
+    if (days <= 0) return 'Today';
+    if (days == 1) return 'Tomorrow';
+    return 'In $days days';
   }
 
   Future<void> _openGardenByName(String gardenName) async {
@@ -128,6 +188,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   _buildHeader(user),
                   const SizedBox(height: 32),
                   _buildSystemStatusHeader(),
+                  const SizedBox(height: 14),
+                  _buildExplorePlantsSection(),
                   const SizedBox(height: 16),
                   Expanded(
                     child: _isGenerating
@@ -137,6 +199,56 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExplorePlantsSection() {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: scheme.surface.withValues(alpha: 0.66),
+        border: Border.all(color: scheme.outline.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.explore, color: scheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Explore House Plants',
+                  style: TextStyle(
+                    color: scheme.onSurface,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  'Browse a large plant knowledge list and get suggestions based on your collection.',
+                  style: TextStyle(
+                    color: scheme.onSurface.withValues(alpha: 0.72),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const PlantExplorerScreen()),
+              );
+            },
+            child: const Text('Open'),
           ),
         ],
       ),
@@ -200,25 +312,100 @@ class _HomeScreenState extends State<HomeScreen> {
     final scheme = Theme.of(context).colorScheme;
 
     if (_thirstyMap.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.check_circle_outline,
-              color: scheme.primary.withValues(alpha: 0.4),
-              size: 60,
+      return ListView(
+        physics: const BouncingScrollPhysics(),
+        children: [
+          const SizedBox(height: 30),
+          Icon(
+            Icons.check_circle_outline,
+            color: scheme.primary.withValues(alpha: 0.4),
+            size: 60,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            "ALL SECTORS HYDRATED",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: scheme.onSurface.withValues(alpha: 0.72),
+              letterSpacing: 1.5,
             ),
-            const SizedBox(height: 16),
+          ),
+          if (_upcomingPlants.isNotEmpty) ...[
+            const SizedBox(height: 28),
             Text(
-              "ALL SECTORS HYDRATED",
+              'Next plants to water',
               style: TextStyle(
-                color: scheme.onSurface.withValues(alpha: 0.72),
-                letterSpacing: 1.5,
+                color: scheme.onSurface,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 10),
+            ..._upcomingPlants.map(
+              (item) => Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: scheme.surface.withValues(alpha: 0.66),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: scheme.outline.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.schedule, size: 18, color: scheme.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.plantName,
+                            style: TextStyle(
+                              color: scheme.onSurface,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            item.gardenName,
+                            style: TextStyle(
+                              color: scheme.onSurface.withValues(alpha: 0.65),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: scheme.primary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        _formatDueLabel(item.daysUntilWatering),
+                        style: TextStyle(
+                          color: scheme.primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
-        ),
+          const SizedBox(height: 20),
+        ],
       );
     }
 
@@ -358,4 +545,16 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     );
   }
+}
+
+class _UpcomingWateringItem {
+  final String gardenName;
+  final String plantName;
+  final int daysUntilWatering;
+
+  const _UpcomingWateringItem({
+    required this.gardenName,
+    required this.plantName,
+    required this.daysUntilWatering,
+  });
 }

@@ -23,7 +23,11 @@ class NotificationService {
     const InitializationSettings initializationSettings =
         InitializationSettings(
           android: initializationSettingsAndroid,
-          iOS: DarwinInitializationSettings(),
+          iOS: DarwinInitializationSettings(
+            requestAlertPermission: true,
+            requestBadgePermission: true,
+            requestSoundPermission: true,
+          ),
         );
 
     await notificationsPlugin.initialize(
@@ -123,15 +127,38 @@ class NotificationService {
       print("Exact Alarm Permission: $granted");
     }
   }
+
+  /// Requests the POST_NOTIFICATIONS runtime permission on Android 13+ (API 33+).
+  /// Must be called from the UI context before showing any notifications.
+  Future<void> requestNotificationPermission() async {
+    if (Platform.isAndroid) {
+      final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+          notificationsPlugin
+              .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin
+              >();
+      await androidImplementation?.requestNotificationsPermission();
+    }
+  }
 }
 
 @pragma('vm:entry-point')
-void notificationTapBackgroundHandler(NotificationResponse details) async {
-  if (details.actionId == 'watered_action') {
-    // Logic to update Firestore: You'll need to pass the plant/garden ID in the payload
-    final data = jsonDecode(details.payload!);
-    waterPlant(data['gardenId'], data['plantId'], data['userId']);
-    print("Plant ${data['plantId']} marked as watered!");
+Future<void> notificationTapBackgroundHandler(
+  NotificationResponse details,
+) async {
+  if (details.actionId == 'watered_action' && details.payload != null) {
+    try {
+      await Firebase.initializeApp();
+      final data = jsonDecode(details.payload!) as Map<String, dynamic>;
+      if (data['type'] == 'bulk_water') {
+        final userId = data['userId'] as String?;
+        if (userId != null && userId.isNotEmpty) {
+          await markAllThirstyAsWatered(userId);
+        }
+      }
+    } catch (e) {
+      print('Background notification handler error: $e');
+    }
   }
 }
 

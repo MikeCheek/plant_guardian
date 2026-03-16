@@ -95,8 +95,71 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
       plant.lastWatered = DateTime.now();
     });
     ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${getPlantDisplayName(plant)} watered! 💧')),
+    );
+  }
+
+  Future<String?> _askForNickname({
+    String? initialNickname,
+    required String basePlantName,
+    bool isEditing = false,
+  }) async {
+    final controller = TextEditingController(text: initialNickname ?? '');
+
+    final nickname = await showDialog<String?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          isEditing ? 'Edit plant nickname' : 'Give your plant a nickname',
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(
+            hintText: 'Optional (e.g., $basePlantName Jr.)',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: Text(isEditing ? 'Keep Current' : 'Skip'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    final cleaned = nickname?.trim();
+    if (cleaned == null || cleaned.isEmpty) return null;
+    return cleaned;
+  }
+
+  Future<void> _editSelectedPlantNickname() async {
+    final plant = _selectedPlant;
+    if (plant == null) return;
+
+    final plantDb = _getPlantDB(plant.plantDbId);
+    final basePlantName = plantDb?.name.split('(')[0].trim() ?? 'Plant';
+
+    final newNickname = await _askForNickname(
+      initialNickname: plant.nickname,
+      basePlantName: basePlantName,
+      isEditing: true,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      plant.nickname = newNickname;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${_getPlantDB(plant.plantDbId)?.name} watered! 💧'),
+        content: Text('Nickname updated for ${getPlantDisplayName(plant)}.'),
       ),
     );
   }
@@ -169,7 +232,14 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
                                   plantDb.description,
                                   style: const TextStyle(fontSize: 12),
                                 ),
-                                onTap: () {
+                                onTap: () async {
+                                  final nickname = await _askForNickname(
+                                    basePlantName: plantDb.name
+                                        .split('(')[0]
+                                        .trim(),
+                                  );
+                                  if (!context.mounted) return;
+
                                   final newPlantInstance = PlantInstance(
                                     id: DateTime.now().microsecondsSinceEpoch
                                         .toString(),
@@ -179,6 +249,7 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
                                       50 + Random().nextDouble() * 200,
                                     ),
                                     scale: 1.7,
+                                    nickname: nickname,
                                   );
                                   Navigator.of(context).pop(newPlantInstance);
                                 },
@@ -351,6 +422,7 @@ class _GardenEditorScreenState extends State<GardenEditorScreen> {
           });
         },
         onDeletePressed: _deleteSelectedPlant,
+        onEditNicknamePressed: _editSelectedPlantNickname,
         onAddPressed: () => _addNewPlant(context),
       ),
     );
@@ -454,7 +526,7 @@ class _SelectedPlantInfo extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
-          '${plantDb?.name ?? 'Plant'} selected. Drag to move, or pinch to scale.',
+          '${getPlantDisplayName(plant)} selected. Drag to move, or pinch to scale.',
           style: const TextStyle(color: Colors.white),
           textAlign: TextAlign.center,
         ),
@@ -468,6 +540,7 @@ class _ControlButtons extends StatelessWidget {
   final bool hasSelectedPlant;
   final VoidCallback onWateringToggle;
   final VoidCallback onDeletePressed;
+  final VoidCallback onEditNicknamePressed;
   final VoidCallback onAddPressed;
 
   const _ControlButtons({
@@ -475,6 +548,7 @@ class _ControlButtons extends StatelessWidget {
     required this.hasSelectedPlant,
     required this.onWateringToggle,
     required this.onDeletePressed,
+    required this.onEditNicknamePressed,
     required this.onAddPressed,
   });
 
@@ -496,6 +570,14 @@ class _ControlButtons extends StatelessWidget {
           ),
           Row(
             children: [
+              if (hasSelectedPlant)
+                FloatingActionButton(
+                  heroTag: 'editNicknameBtn',
+                  onPressed: onEditNicknamePressed,
+                  backgroundColor: Colors.amber[700],
+                  child: const Icon(Icons.edit, color: Colors.white),
+                ),
+              if (hasSelectedPlant) const SizedBox(width: 12),
               if (hasSelectedPlant)
                 FloatingActionButton(
                   heroTag: 'deleteBtn',

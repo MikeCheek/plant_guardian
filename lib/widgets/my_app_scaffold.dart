@@ -208,7 +208,7 @@ class _MyAppScaffoldState extends State<MyAppScaffold> {
             ),
           ],
         ),
-        body: _pages[_selectedIndex],
+        body: IndexedStack(index: _selectedIndex, children: _pages),
         bottomNavigationBar: AnimatedSwitcher(
           duration: const Duration(milliseconds: 200),
           child: isKeyboardOpen

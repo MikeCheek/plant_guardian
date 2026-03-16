@@ -182,7 +182,8 @@ class _UserScreenState extends State<UserScreen> {
     }
 
     if (_thirstyAlertsEnabled) {
-      checkWateringNeedsAndNotify(user.uid);
+      await service.requestNotificationPermission();
+      await checkWateringNeedsAndNotify(user.uid);
       await Workmanager().registerPeriodicTask(
         "watering-check-task",
         "checkWateringNeeds",

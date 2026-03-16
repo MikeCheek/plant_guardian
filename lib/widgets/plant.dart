@@ -127,7 +127,7 @@ class _DraggablePlant extends StatelessWidget {
             children: [
               _PlantImage(plant: plant, plantDb: plantDb),
               Text(
-                plantDb.name.split('(')[0].trim(),
+                getPlantDisplayName(plant),
                 style: TextStyle(
                   fontSize: 4 * plant.scale,
                   fontWeight: FontWeight.bold,

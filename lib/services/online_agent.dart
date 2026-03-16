@@ -40,6 +40,7 @@ class OnlineAgent {
   /// Send a message to the remote server and stream the response
   Future<void> ask(
     String userMessage, {
+    String? uid,
     required void Function(String) onThinking,
     required void Function(String) onPartialResponse,
     required void Function(String) onCompleted,
@@ -61,6 +62,7 @@ class OnlineAgent {
         },
         body: jsonEncode({
           'message': userMessage,
+          'uid': uid,
           // 'history': _chatHistory, // Optional: if your backend handles history
         }),
       );

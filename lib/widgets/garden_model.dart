@@ -84,6 +84,7 @@ class PlantInstance {
   Offset position; // The position on the screen
   double scale; // Scale factor for resizing
   DateTime? lastWatered;
+  String? nickname;
 
   PlantInstance({
     required this.id,
@@ -91,6 +92,7 @@ class PlantInstance {
     required this.position,
     this.scale = 1.0,
     this.lastWatered,
+    this.nickname,
   });
 
   // 🚨 MODIFIED: Convert PlantInstance to a Map for Firestore
@@ -105,6 +107,7 @@ class PlantInstance {
       'lastWatered': lastWatered != null
           ? Timestamp.fromDate(lastWatered!)
           : null,
+      'nickname': nickname,
     };
   }
 
@@ -121,6 +124,9 @@ class PlantInstance {
       lastWatered: json['lastWatered'] != null
           ? (json['lastWatered'] as Timestamp).toDate()
           : null,
+      nickname: (json['nickname'] as String?)?.trim().isEmpty == true
+          ? null
+          : (json['nickname'] as String?),
     );
   }
 }
@@ -130,6 +136,7 @@ class Garden {
   final String id;
   String name;
   String backgroundPattern; // Asset path for the background
+  int? iconCodePoint;
   String? uid;
   List<PlantInstance> plants;
 
@@ -138,6 +145,7 @@ class Garden {
     required this.id,
     required this.name,
     required this.backgroundPattern,
+    this.iconCodePoint,
     this.uid,
     this.plants = const [],
   });
@@ -161,6 +169,7 @@ class Garden {
       'garden_name': name,
       'uid': uid,
       'backgroundPattern': backgroundPattern,
+      'garden_icon': iconCodePoint,
       // Convert the list of PlantInstance objects (which now only store IDs)
       'plants': plants.map((p) => p.toJson()).toList(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -173,6 +182,7 @@ class Garden {
       id: json['garden_id'] as String,
       name: json['garden_name'] as String,
       backgroundPattern: json['backgroundPattern'] as String,
+      iconCodePoint: (json['garden_icon'] as num?)?.toInt(),
       uid: json['uid'] as String,
       plants: (json['plants'] as List)
           .map((p) => PlantInstance.fromJson(p as Map<String, dynamic>))
@@ -185,6 +195,7 @@ class Garden {
       id: id,
       name: data['garden_name'] as String,
       backgroundPattern: data['backgroundPattern'] as String,
+      iconCodePoint: (data['garden_icon'] as num?)?.toInt(),
       uid: data['uid'] as String,
       plants: (data['plants'] as List)
           .map((p) => PlantInstance.fromJson(p as Map<String, dynamic>))
@@ -346,6 +357,21 @@ PlantDB? getPlantByName(String name) {
   return null;
 }
 
+String getPlantDisplayName(
+  PlantInstance plant, {
+  bool trimScientificName = true,
+}) {
+  final nickname = plant.nickname?.trim();
+  if (nickname != null && nickname.isNotEmpty) {
+    return nickname;
+  }
+
+  final plantDb = globalPlantsDB[plant.plantDbId];
+  if (plantDb == null) return 'Plant';
+
+  return trimScientificName ? plantDb.name.split('(')[0].trim() : plantDb.name;
+}
+
 Stream<List<Garden>> gardensStream(
   String userId,
   FirebaseFirestore firestore,
@@ -402,7 +428,7 @@ Future<Map<String, List<String>>> getThirstyMapFromFirestore(
     for (var instance in garden.plants) {
       final plantDb = globalPlantsDB[instance.plantDbId];
       if (plantDb != null && isPlantThirsty(instance)) {
-        thirstyInThisGarden.add(plantDb.name);
+        thirstyInThisGarden.add(getPlantDisplayName(instance));
       }
     }
 
@@ -423,14 +449,14 @@ Future<Map<String, List<String>>> getThirstyMapFromFirestore(
 Future<void> checkWateringNeedsAndNotify(String userId) async {
   final thirstyMap = await getThirstyMapFromFirestore(userId);
   if (thirstyMap.isNotEmpty) {
-    _showThirstyNotificationGrouped(thirstyMap);
-  } else {
-    _showGoodHealthNotification();
+    await _showThirstyNotificationGrouped(thirstyMap, userId);
   }
+  // No notification when all plants are healthy — avoids daily spam from background task
 }
 
 Future<void> _showThirstyNotificationGrouped(
   Map<String, List<String>> groupedPlants,
+  String userId,
 ) async {
   // 1. Build the formatted string
   StringBuffer buffer = StringBuffer();
@@ -473,46 +499,37 @@ Future<void> _showThirstyNotificationGrouped(
     title: "Thirsty Plants! 💧",
     body: "Check your $totalCount plants in ${groupedPlants.keys.first}...",
     notificationDetails: NotificationDetails(android: androidDetails),
-    payload: jsonEncode({"type": "bulk_water"}),
+    payload: jsonEncode({"type": "bulk_water", "userId": userId}),
   );
 }
 
-// 2. Show the notification with the button
-Future<void> _showThirstyNotification(List<String> names) async {
-  // 1. Create a formatted multi-line string for the expanded view
-  final String bulletedList = names.map((name) => "• $name").join('\n');
+/// Marks every currently-thirsty plant for [userId] as watered in Firestore.
+/// Called by the "Mark all as Watered" notification action.
+Future<void> markAllThirstyAsWatered(String userId) async {
+  final firestore = FirebaseFirestore.instance;
+  await fetchAndCacheAvailablePlants(firestore);
 
-  // 2. Define the BigText style
-  final bigTextStyle = BigTextStyleInformation(
-    bulletedList,
-    contentTitle: "Time to Water! 💧",
-    summaryText:
-        "${names.length} plants need attention", // Shown when collapsed
-  );
+  final gardensSnapshot = await firestore
+      .collection('users')
+      .doc(userId)
+      .collection('gardens')
+      .get();
 
-  final androidDetails = AndroidNotificationDetails(
-    'watering_id',
-    'Plant Care',
-    importance: Importance.max,
-    priority: Priority.high,
-    styleInformation: bigTextStyle, // 🟢 Add the BigText style here
-    actions: [
-      const AndroidNotificationAction(
-        'watered_action',
-        'Mark all as Watered',
-        showsUserInterface: true,
-      ),
-    ],
-  );
+  for (final doc in gardensSnapshot.docs) {
+    final garden = Garden.fromJson(doc.data());
+    bool changed = false;
 
-  await NotificationService().showInstantNotification(
-    id: 100,
-    title: "Time to Water! 💧",
-    // This body is what shows in the collapsed state or on the lock screen
-    body: "${names.length} plants need love: ${names.take(2).join(', ')}...",
-    notificationDetails: NotificationDetails(android: androidDetails),
-    payload: jsonEncode({"type": "bulk_water"}),
-  );
+    for (final plant in garden.plants) {
+      if (isPlantThirsty(plant)) {
+        plant.lastWatered = DateTime.now();
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      await doc.reference.update(garden.toJson());
+    }
+  }
 }
 
 Future<void> waterPlant(String gardenId, String plantId, String userId) async {
@@ -537,7 +554,9 @@ Future<void> waterPlant(String gardenId, String plantId, String userId) async {
       });
 }
 
-Future<void> _showGoodHealthNotification() async {
+/// Shows an "all healthy" notification. Only call from UI context,
+/// NOT from background tasks — avoids daily spam when no plants need water.
+Future<void> showGoodHealthNotification() async {
   const androidDetails = AndroidNotificationDetails(
     'watering_id',
     'Plant Care',

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/online_agent.dart'; // Import your new OnlineAgent class
 import '../widgets/message_bubble.dart';
 
@@ -19,6 +20,8 @@ class _ChatScreenOnlineState extends State<ChatScreenOnline> {
   bool _isLoading = false;
   bool _isServerReady = false;
   bool _isServerOffline = false;
+  int _retryCount = 0;
+  static const int _maxRetries = 3;
 
   final ValueNotifier<String> _liveResponse = ValueNotifier<String>('');
   final ScrollController _scrollController = ScrollController();
@@ -41,23 +44,34 @@ class _ChatScreenOnlineState extends State<ChatScreenOnline> {
   /// Pings the /health endpoint on your Docker server
   Future<void> _checkServerStatus() async {
     try {
-      await _agent.init(); // This calls the health check we defined
+      await _agent.init();
       if (!mounted) return;
       setState(() {
         _isServerReady = true;
         _isServerOffline = false;
+        _retryCount = 0;
       });
     } catch (e) {
       debugPrint("Server Error: $e");
-      // Optional: Retry after 10 seconds if server is still booting the model
       if (!mounted) return;
-      Future.delayed(const Duration(seconds: 20), () {
-        if (mounted) _checkServerStatus();
-      });
-      setState(() {
-        _isServerOffline = true;
-      });
+      _retryCount++;
+      if (_retryCount < _maxRetries) {
+        Future.delayed(const Duration(seconds: 20), () {
+          if (mounted) _checkServerStatus();
+        });
+      } else {
+        setState(() => _isServerOffline = true);
+      }
     }
+  }
+
+  void _retryFromButton() {
+    setState(() {
+      _isServerOffline = false;
+      _isServerReady = false;
+      _retryCount = 0;
+    });
+    _checkServerStatus();
   }
 
   void _scrollToBottom() {
@@ -73,6 +87,7 @@ class _ChatScreenOnlineState extends State<ChatScreenOnline> {
 
   void _sendMessage() async {
     final text = _controller.text.trim();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
     if (text.isEmpty || _isLoading) return;
 
     setState(() {
@@ -85,6 +100,7 @@ class _ChatScreenOnlineState extends State<ChatScreenOnline> {
 
     await _agent.ask(
       text,
+      uid: uid,
       onThinking: (status) {
         _liveResponse.value = status;
         _scrollToBottom();
@@ -113,11 +129,22 @@ class _ChatScreenOnlineState extends State<ChatScreenOnline> {
   @override
   Widget build(BuildContext context) {
     if (_isServerOffline) {
-      return const Scaffold(
+      return Scaffold(
         body: Center(
-          child: Text(
-            "💤 The GreenThumb Engine is currently offline.\nTry again later.",
-            textAlign: TextAlign.center,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                "💤 The GreenThumb Engine is currently offline.\nTry again later.",
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: _retryFromButton,
+                icon: const Icon(Icons.refresh),
+                label: const Text("Retry"),
+              ),
+            ],
           ),
         ),
       );

@@ -14,6 +14,16 @@ class _GardenListScreenState extends State<GardenListScreen>
     with SingleTickerProviderStateMixin {
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
+  static const List<IconData> _gardenIcons = [
+    Icons.yard_rounded,
+    Icons.local_florist,
+    Icons.park,
+    Icons.eco,
+    Icons.grass,
+    Icons.spa,
+    Icons.forest,
+    Icons.compost,
+  ];
 
   // 🟢 NEW: State and controller for FAB animation
   bool _isFabExpanded = false;
@@ -81,6 +91,190 @@ class _GardenListScreenState extends State<GardenListScreen>
 
   void _deleteGarden(String gardenId) async {
     await deleteGarden(_auth.currentUser, gardenId, _firestore, context);
+  }
+
+  IconData _iconForGarden(Garden garden) {
+    return IconData(
+      garden.iconCodePoint ?? Icons.yard_rounded.codePoint,
+      fontFamily: 'MaterialIcons',
+    );
+  }
+
+  Future<void> _renameGarden(Garden garden) async {
+    final controller = TextEditingController(text: garden.name);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Rename Garden'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 30,
+            decoration: const InputDecoration(labelText: 'Garden name'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('CANCEL'),
+            ),
+            ElevatedButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(controller.text.trim()),
+              child: const Text('SAVE'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (newName == null || newName.isEmpty || newName == garden.name) return;
+
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('gardens')
+        .doc(garden.id)
+        .update({
+          'garden_name': newName,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+  }
+
+  Future<void> _changeGardenIcon(Garden garden) async {
+    final selectedIcon = await showModalBottomSheet<IconData>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: GridView.builder(
+              shrinkWrap: true,
+              itemCount: _gardenIcons.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+              ),
+              itemBuilder: (context, index) {
+                final icon = _gardenIcons[index];
+                final isSelected =
+                    garden.iconCodePoint == icon.codePoint ||
+                    (garden.iconCodePoint == null &&
+                        icon.codePoint == Icons.yard_rounded.codePoint);
+
+                return InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => Navigator.of(context).pop(icon),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.outline,
+                      ),
+                    ),
+                    child: Icon(icon, size: 30),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selectedIcon == null) return;
+
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('gardens')
+        .doc(garden.id)
+        .update({
+          'garden_icon': selectedIcon.codePoint,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+  }
+
+  Future<void> _confirmDeleteGarden(Garden garden) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Confirm Deletion'),
+          content: Text(
+            "Are you sure you want to delete '${garden.name}'? This cannot be undone.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('CANCEL'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text(
+                'DELETE',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      _deleteGarden(garden.id);
+    }
+  }
+
+  Future<void> _showGardenActions(Garden garden) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Rename garden'),
+                onTap: () => Navigator.of(context).pop('rename'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.palette_outlined),
+                title: const Text('Change icon'),
+                onTap: () => Navigator.of(context).pop('icon'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('Delete garden'),
+                textColor: Colors.red,
+                onTap: () => Navigator.of(context).pop('delete'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (action == 'rename') {
+      await _renameGarden(garden);
+    } else if (action == 'icon') {
+      await _changeGardenIcon(garden);
+    } else if (action == 'delete') {
+      await _confirmDeleteGarden(garden);
+    }
   }
 
   // --- Widget Building Methods ---
@@ -193,6 +387,7 @@ class _GardenListScreenState extends State<GardenListScreen>
                   const Text(
                     "You haven't created any gardens yet!",
                     style: TextStyle(fontSize: 18, color: Colors.grey),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
@@ -213,141 +408,86 @@ class _GardenListScreenState extends State<GardenListScreen>
               final garden = gardens[index];
               final bool hasThirstyPlants = _isAnyPlantThirsty(garden.plants);
 
-              return Dismissible(
-                key: Key(garden.id),
-                direction: DismissDirection.endToStart,
-                background: Container(
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Icon(Icons.delete_forever, color: Colors.white, size: 32),
-                      SizedBox(height: 4),
-                      Text(
-                        "RELEASE TO DELETE",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
+              return Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                confirmDismiss: (direction) async {
-                  return await showDialog(
-                    context: context,
-                    builder: (BuildContext context) {
-                      return AlertDialog(
-                        title: const Text("Confirm Deletion"),
-                        content: Text(
-                          "Are you sure you want to delete '${garden.name}'? This cannot be undone.",
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(
-                              context,
-                            ).pop(false), // Returns false
-                            child: const Text("CANCEL"),
-                          ),
-                          ElevatedButton(
-                            onPressed: () =>
-                                Navigator.of(context).pop(true), // Returns true
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  children: [
+                    InkWell(
+                      onTap: () => openGardenEditor(context, garden),
+                      onLongPress: () => _showGardenActions(garden),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Icon or Background Preview
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Theme.of(
+                                context,
+                              ).secondaryHeaderColor.withOpacity(0.1),
+                              shape: BoxShape.circle,
                             ),
-                            child: const Text(
-                              "DELETE",
-                              style: TextStyle(color: Colors.white),
+                            child: Icon(
+                              _iconForGarden(garden),
+                              size: 40,
+                              color: Theme.of(context).secondaryHeaderColor,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          // Garden Name
+                          Text(
+                            garden.name,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          // Plant Count
+                          Text(
+                            '${garden.plants.length} plants',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Long press for options',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.outline,
+                              fontSize: 11,
                             ),
                           ),
                         ],
-                      );
-                    },
-                  );
-                },
-
-                onDismissed: (_) {
-                  _deleteGarden(garden.id);
-                },
-                child: Card(
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Stack(
-                    children: [
-                      InkWell(
-                        onTap: () => openGardenEditor(context, garden),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // Icon or Background Preview
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Theme.of(
-                                  context,
-                                ).primaryColor.withOpacity(0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.yard_rounded,
-                                size: 40,
-                                color: Theme.of(context).primaryColor,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            // Garden Name
-                            Text(
-                              garden.name,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            // Plant Count
-                            Text(
-                              '${garden.plants.length} plants',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
-                      if (hasThirstyPlants)
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.water_drop, // The drop icon
-                              color: Colors.blue,
-                              size: 20,
-                            ),
+                    ),
+                    if (hasThirstyPlants)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.water_drop, // The drop icon
+                            color: Colors.blue,
+                            size: 20,
                           ),
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
               );
             },
